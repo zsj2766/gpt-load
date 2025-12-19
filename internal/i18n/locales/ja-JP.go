@@ -72,6 +72,7 @@ var MessagesJaJP = map[string]string{
 	"validation.sub_group_referenced_cannot_modify": "このグループは {{.count}} 個の集約グループでサブグループとして参照されています。チャンネルタイプまたは検証エンドポイントは変更できません。変更前に関連する集約グループからこのグループを削除してください",
 	"validation.standard_group_requires_upstreams_testmodel": "標準グループへの変換にはアップストリームサーバーとテストモデルの提供が必要です",
 	"validation.aggregate_no_model_redirect": "集約グループはモデルリダイレクトルールをサポートしていません",
+	"validation.invalid_retry_strategy": "無効なリトライ戦略です。'auto'、'fixed'、または 'switch' である必要があります",
 
 	// Task related
 	"task.validation_started": "キー検証タスクが開始されました",

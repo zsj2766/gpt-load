@@ -110,10 +110,11 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 
 	isStream := channelHandler.IsStreamRequest(c, bodyBytes)
 
-	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0)
+	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0, nil)
 }
 
 // executeRequestWithRetry is the core recursive function for handling requests and retries.
+// failedSubGroups tracks sub-group names that have failed in this request chain (for aggregate groups).
 func (ps *ProxyServer) executeRequestWithRetry(
 	c *gin.Context,
 	channelHandler channel.ChannelProxy,
@@ -123,6 +124,7 @@ func (ps *ProxyServer) executeRequestWithRetry(
 	isStream bool,
 	startTime time.Time,
 	retryCount int,
+	failedSubGroups map[string]bool,
 ) {
 	cfg := group.EffectiveConfig
 
@@ -255,7 +257,27 @@ func (ps *ProxyServer) executeRequestWithRetry(
 			return
 		}
 
-		ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, bodyBytes, isStream, startTime, retryCount+1)
+		// Determine the next group to use based on retry strategy
+		nextGroup, nextChannelHandler, updatedFailedSubGroups := ps.selectNextGroupForRetry(
+			c, originalGroup, group, channelHandler, failedSubGroups,
+		)
+		if nextGroup == nil {
+			// No available group for retry, return current error
+			var errorJSON map[string]any
+			if err := json.Unmarshal([]byte(errorMessage), &errorJSON); err == nil {
+				c.JSON(statusCode, errorJSON)
+			} else {
+				response.Error(c, app_errors.NewAPIErrorWithUpstream(statusCode, "UPSTREAM_ERROR", errorMessage))
+			}
+			return
+		}
+
+		// If nextChannelHandler is nil, use the current one (means we're staying with the same group)
+		if nextChannelHandler == nil {
+			nextChannelHandler = channelHandler
+		}
+
+		ps.executeRequestWithRetry(c, nextChannelHandler, originalGroup, nextGroup, bodyBytes, isStream, startTime, retryCount+1, updatedFailedSubGroups)
 		return
 	}
 
@@ -356,4 +378,140 @@ func (ps *ProxyServer) logRequest(
 	if err := ps.requestLogService.Record(logEntry); err != nil {
 		logrus.Errorf("Failed to record request log: %v", err)
 	}
+}
+
+// selectNextGroupForRetry determines which group to use for the next retry attempt
+// based on the aggregate group's retry strategy.
+// Returns the next group to use, its channel handler, and an updated map of failed sub-groups.
+// Returns nil for the group if no suitable group is available for retry.
+func (ps *ProxyServer) selectNextGroupForRetry(
+	c *gin.Context,
+	originalGroup *models.Group,
+	currentGroup *models.Group,
+	currentChannelHandler channel.ChannelProxy,
+	failedSubGroups map[string]bool,
+) (*models.Group, channel.ChannelProxy, map[string]bool) {
+	// If not an aggregate group, always keep the current group (rotate keys within)
+	if originalGroup == nil || originalGroup.GroupType != "aggregate" {
+		return currentGroup, currentChannelHandler, failedSubGroups
+	}
+
+	// Get the retry strategy from the original (aggregate) group
+	retryStrategy := originalGroup.RetryStrategy
+	if retryStrategy == "" {
+		retryStrategy = models.RetryStrategyAuto
+	}
+
+	// Initialize failedSubGroups map if nil
+	if failedSubGroups == nil {
+		failedSubGroups = make(map[string]bool)
+	}
+
+	switch retryStrategy {
+	case models.RetryStrategyFixed:
+		// Fixed: always keep the current sub-group, rotate keys within
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": originalGroup.Name,
+			"current_group":   currentGroup.Name,
+			"strategy":        "fixed",
+		}).Debug("Using fixed retry strategy, keeping current sub-group")
+		return currentGroup, currentChannelHandler, failedSubGroups
+
+	case models.RetryStrategySwitch:
+		// Switch: always try to switch to another sub-group
+		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups)
+
+	case models.RetryStrategyAuto:
+		fallthrough
+	default:
+		// Auto: check if current group has more than 1 active key
+		activeKeyCount := ps.subGroupManager.GetActiveKeyCount(currentGroup.ID)
+		if activeKeyCount > 1 {
+			// Multi-key: keep current sub-group, rotate keys within
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group":  originalGroup.Name,
+				"current_group":    currentGroup.Name,
+				"active_key_count": activeKeyCount,
+				"strategy":         "auto (multi-key, keep current)",
+			}).Debug("Auto strategy: multiple keys available, keeping current sub-group")
+			return currentGroup, currentChannelHandler, failedSubGroups
+		}
+
+		// Single key or no keys: switch to another sub-group
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group":  originalGroup.Name,
+			"current_group":    currentGroup.Name,
+			"active_key_count": activeKeyCount,
+			"strategy":         "auto (single-key, switching)",
+		}).Debug("Auto strategy: single key or less, switching to another sub-group")
+		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups)
+	}
+}
+
+// switchToAnotherSubGroup attempts to select a different sub-group for retry,
+// excluding the current group and previously failed groups.
+func (ps *ProxyServer) switchToAnotherSubGroup(
+	c *gin.Context,
+	originalGroup *models.Group,
+	currentGroup *models.Group,
+	failedSubGroups map[string]bool,
+) (*models.Group, channel.ChannelProxy, map[string]bool) {
+	// Mark current group as failed
+	updatedFailedSubGroups := make(map[string]bool)
+	for k, v := range failedSubGroups {
+		updatedFailedSubGroups[k] = v
+	}
+	updatedFailedSubGroups[currentGroup.Name] = true
+
+	// Try to find another sub-group that hasn't failed
+	newSubGroupName, err := ps.subGroupManager.SelectSubGroupExcluding(originalGroup, currentGroup.Name)
+	if err != nil || newSubGroupName == "" {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": originalGroup.Name,
+			"current_group":   currentGroup.Name,
+			"error":           err,
+		}).Debug("No other sub-groups available for retry")
+		// Fall back to current group if no other options
+		return currentGroup, nil, updatedFailedSubGroups
+	}
+
+	// Check if this new sub-group has already failed in this request chain
+	if updatedFailedSubGroups[newSubGroupName] {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group":   originalGroup.Name,
+			"new_sub_group":     newSubGroupName,
+			"failed_sub_groups": updatedFailedSubGroups,
+		}).Debug("Selected sub-group has already failed, falling back to current group")
+		return currentGroup, nil, updatedFailedSubGroups
+	}
+
+	// Get the new sub-group
+	newGroup, err := ps.groupManager.GetGroupByName(newSubGroupName)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": originalGroup.Name,
+			"new_sub_group":   newSubGroupName,
+			"error":           err,
+		}).Error("Failed to get new sub-group for retry")
+		return currentGroup, nil, updatedFailedSubGroups
+	}
+
+	// Get the channel handler for the new group
+	newChannelHandler, err := ps.channelFactory.GetChannel(newGroup)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": originalGroup.Name,
+			"new_sub_group":   newSubGroupName,
+			"error":           err,
+		}).Error("Failed to get channel handler for new sub-group")
+		return currentGroup, nil, updatedFailedSubGroups
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"aggregate_group": originalGroup.Name,
+		"from_group":      currentGroup.Name,
+		"to_group":        newSubGroupName,
+	}).Debug("Switching to another sub-group for retry")
+
+	return newGroup, newChannelHandler, updatedFailedSubGroups
 }

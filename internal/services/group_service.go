@@ -88,6 +88,7 @@ type GroupCreateParams struct {
 	DisplayName         string
 	Description         string
 	GroupType           string
+	RetryStrategy       string // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage
 	ChannelType         string
 	Sort                int
@@ -108,6 +109,7 @@ type GroupUpdateParams struct {
 	DisplayName         *string
 	Description         *string
 	GroupType           *string
+	RetryStrategy       *string // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage
 	HasUpstreams        bool
 	ChannelType         *string
@@ -219,6 +221,20 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.aggregate_no_model_redirect", nil)
 	}
 
+	// Validate and set retry strategy (only for aggregate groups)
+	retryStrategy := strings.TrimSpace(params.RetryStrategy)
+	if groupType == "aggregate" {
+		if retryStrategy == "" {
+			retryStrategy = models.RetryStrategyAuto
+		}
+		if !isValidRetryStrategy(retryStrategy) {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_retry_strategy", nil)
+		}
+	} else {
+		// For non-aggregate groups, retry strategy is not applicable
+		retryStrategy = ""
+	}
+
 	// Validate model redirect rules format
 	if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
@@ -229,6 +245,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		DisplayName:         strings.TrimSpace(params.DisplayName),
 		Description:         strings.TrimSpace(params.Description),
 		GroupType:           groupType,
+		RetryStrategy:       retryStrategy,
 		Upstreams:           cleanedUpstreams,
 		ChannelType:         channelType,
 		Sort:                params.Sort,
@@ -361,6 +378,21 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 
 	if params.ParamOverrides != nil {
 		group.ParamOverrides = params.ParamOverrides
+	}
+
+	// Validate and update retry strategy (only for aggregate groups)
+	if params.RetryStrategy != nil {
+		if group.GroupType == "aggregate" {
+			cleanedRetryStrategy := strings.TrimSpace(*params.RetryStrategy)
+			if cleanedRetryStrategy == "" {
+				cleanedRetryStrategy = models.RetryStrategyAuto
+			}
+			if !isValidRetryStrategy(cleanedRetryStrategy) {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_retry_strategy", nil)
+			}
+			group.RetryStrategy = cleanedRetryStrategy
+		}
+		// For non-aggregate groups, ignore retry strategy updates
 	}
 
 	// Validate model redirect rules for aggregate groups
@@ -976,6 +1008,13 @@ func (s *GroupService) isValidChannelType(channelType string) bool {
 		}
 	}
 	return false
+}
+
+// isValidRetryStrategy checks if the retry strategy is valid.
+func isValidRetryStrategy(strategy string) bool {
+	return strategy == models.RetryStrategyAuto ||
+		strategy == models.RetryStrategyFixed ||
+		strategy == models.RetryStrategySwitch
 }
 
 // convertToJSONMap converts a map[string]string to datatypes.JSONMap

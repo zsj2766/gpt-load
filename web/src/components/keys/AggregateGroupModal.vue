@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { keysApi } from "@/api/keys";
 import ProxyKeysInput from "@/components/common/ProxyKeysInput.vue";
-import { type ChannelType, type Group } from "@/types/models";
+import { type ChannelType, type Group, type RetryStrategy } from "@/types/models";
 import { Close } from "@vicons/ionicons5";
 import {
   NButton,
@@ -47,12 +47,29 @@ const channelTypeOptions = [
   { label: "Anthropic", value: "anthropic" as ChannelType },
 ];
 
+// 重试策略选项
+const retryStrategyOptions = [
+  {
+    label: t("keys.retryStrategyAuto"),
+    value: "auto" as RetryStrategy,
+  },
+  {
+    label: t("keys.retryStrategyFixed"),
+    value: "fixed" as RetryStrategy,
+  },
+  {
+    label: t("keys.retryStrategySwitch"),
+    value: "switch" as RetryStrategy,
+  },
+];
+
 // 默认表单数据
 const defaultFormData = {
   name: "",
   display_name: "",
   description: "",
   channel_type: "openai" as ChannelType,
+  retry_strategy: "auto" as RetryStrategy,
   sort: 1,
   proxy_keys: "",
 };
@@ -114,6 +131,7 @@ function loadGroupData() {
     display_name: props.group.display_name || "",
     description: props.group.description || "",
     channel_type: props.group.channel_type || "openai",
+    retry_strategy: props.group.retry_strategy || "auto",
     sort: props.group.sort || 1,
     proxy_keys: props.group.proxy_keys || "",
   });
@@ -141,6 +159,7 @@ async function handleSubmit() {
       display_name: formData.display_name,
       description: formData.description,
       channel_type: formData.channel_type,
+      retry_strategy: formData.retry_strategy,
       sort: formData.sort,
       proxy_keys: formData.proxy_keys,
       group_type: "aggregate" as const,
@@ -218,6 +237,14 @@ async function handleSubmit() {
               :options="channelTypeOptions"
               :placeholder="t('keys.selectChannelType')"
               :disabled="!!props.group"
+            />
+          </n-form-item>
+
+          <n-form-item :label="t('keys.retryStrategy')">
+            <n-select
+              v-model:value="formData.retry_strategy"
+              :options="retryStrategyOptions"
+              :placeholder="t('keys.selectRetryStrategy')"
             />
           </n-form-item>
 

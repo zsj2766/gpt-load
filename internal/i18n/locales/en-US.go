@@ -72,6 +72,7 @@ var MessagesEnUS = map[string]string{
 	"validation.sub_group_referenced_cannot_modify": "This group is referenced by {{.count}} aggregate group(s) as a sub-group. Cannot modify channel type or validation endpoint. Please remove this group from related aggregate groups before making changes",
 	"validation.standard_group_requires_upstreams_testmodel": "Converting to standard group requires providing upstreams and test model",
 	"validation.aggregate_no_model_redirect": "Aggregate groups do not support model redirect rules",
+	"validation.invalid_retry_strategy": "Invalid retry strategy. Must be 'auto', 'fixed', or 'switch'",
 
 	// Task related
 	"task.validation_started": "Key validation task started",

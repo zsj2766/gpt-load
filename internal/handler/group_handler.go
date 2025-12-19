@@ -48,7 +48,8 @@ type GroupCreateRequest struct {
 	Name                string              `json:"name"`
 	DisplayName         string              `json:"display_name"`
 	Description         string              `json:"description"`
-	GroupType           string              `json:"group_type"` // 'standard' or 'aggregate'
+	GroupType           string              `json:"group_type"`    // 'standard' or 'aggregate'
+	RetryStrategy       string              `json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage     `json:"upstreams"`
 	ChannelType         string              `json:"channel_type"`
 	Sort                int                 `json:"sort"`
@@ -75,6 +76,7 @@ func (s *Server) CreateGroup(c *gin.Context) {
 		DisplayName:         req.DisplayName,
 		Description:         req.Description,
 		GroupType:           req.GroupType,
+		RetryStrategy:       req.RetryStrategy,
 		Upstreams:           req.Upstreams,
 		ChannelType:         req.ChannelType,
 		Sort:                req.Sort,
@@ -118,6 +120,7 @@ type GroupUpdateRequest struct {
 	DisplayName         *string             `json:"display_name,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	GroupType           *string             `json:"group_type,omitempty"`
+	RetryStrategy       *string             `json:"retry_strategy,omitempty"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage     `json:"upstreams"`
 	ChannelType         *string             `json:"channel_type,omitempty"`
 	Sort                *int                `json:"sort"`
@@ -150,6 +153,7 @@ func (s *Server) UpdateGroup(c *gin.Context) {
 		DisplayName:         req.DisplayName,
 		Description:         req.Description,
 		GroupType:           req.GroupType,
+		RetryStrategy:       req.RetryStrategy,
 		ChannelType:         req.ChannelType,
 		Sort:                req.Sort,
 		ValidationEndpoint:  req.ValidationEndpoint,
@@ -191,6 +195,7 @@ type GroupResponse struct {
 	DisplayName         string              `json:"display_name"`
 	Description         string              `json:"description"`
 	GroupType           string              `json:"group_type"`
+	RetryStrategy       string              `json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           datatypes.JSON      `json:"upstreams"`
 	ChannelType         string              `json:"channel_type"`
 	Sort                int                 `json:"sort"`
@@ -235,6 +240,7 @@ func (s *Server) newGroupResponse(group *models.Group) *GroupResponse {
 		DisplayName:         group.DisplayName,
 		Description:         group.Description,
 		GroupType:           group.GroupType,
+		RetryStrategy:       group.RetryStrategy,
 		Upstreams:           group.Upstreams,
 		ChannelType:         group.ChannelType,
 		Sort:                group.Sort,

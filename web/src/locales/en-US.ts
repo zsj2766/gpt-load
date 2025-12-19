@@ -421,6 +421,15 @@ export default {
     notes: "Notes",
     editKeyNotes: "Edit key notes",
     enterNotes: "Enter notes...",
+    retryStrategy: "Retry Strategy",
+    selectRetryStrategy: "Select retry strategy",
+    retryStrategyAuto: "Smart Switch (Recommended)",
+    retryStrategyFixed: "Fixed Group",
+    retryStrategySwitch: "Force Switch",
+    retryStrategyAutoTooltip:
+      "Multi-key sub-groups stay in current group for retry, single-key sub-groups switch to other groups",
+    retryStrategyFixedTooltip: "Always retry within the current sub-group by rotating keys",
+    retryStrategySwitchTooltip: "Always switch to another sub-group on retry",
   },
   subGroups: {
     addSubGroup: "Add Sub Group",

@@ -405,6 +405,15 @@ export default {
     notes: "备注",
     editKeyNotes: "编辑密钥备注",
     enterNotes: "请输入备注...",
+    retryStrategy: "重试策略",
+    selectRetryStrategy: "请选择重试策略",
+    retryStrategyAuto: "智能切换（推荐）",
+    retryStrategyFixed: "固定分组",
+    retryStrategySwitch: "强制切换",
+    retryStrategyAutoTooltip:
+      "多密钥子分组保持当前分组重试，单密钥子分组切换到其他分组",
+    retryStrategyFixedTooltip: "始终保持在当前子分组内轮换密钥重试",
+    retryStrategySwitchTooltip: "重试时总是切换到其他子分组",
   },
   subGroups: {
     addSubGroup: "添加子分组",

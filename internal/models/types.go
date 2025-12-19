@@ -77,6 +77,13 @@ type ParentAggregateGroupInfo struct {
 	Weight      int    `json:"weight"`
 }
 
+// Retry strategy constants for aggregate groups
+const (
+	RetryStrategyAuto   = "auto"   // Smart switch: multi-key keeps current group, single-key switches
+	RetryStrategyFixed  = "fixed"  // Always keep current sub-group, rotate keys within
+	RetryStrategySwitch = "switch" // Always switch to another sub-group on retry
+)
+
 // Group 对应 groups 表
 type Group struct {
 	ID                   uint                 `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -87,6 +94,7 @@ type Group struct {
 	ProxyKeys            string               `gorm:"type:text" json:"proxy_keys"`
 	Description          string               `gorm:"type:varchar(512)" json:"description"`
 	GroupType            string               `gorm:"type:varchar(50);default:'standard'" json:"group_type"` // 'standard' or 'aggregate'
+	RetryStrategy        string               `gorm:"type:varchar(20);default:'auto'" json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams            datatypes.JSON       `gorm:"type:json;not null" json:"upstreams"`
 	ValidationEndpoint   string               `gorm:"type:varchar(255)" json:"validation_endpoint"`
 	ChannelType          string               `gorm:"type:varchar(50);not null" json:"channel_type"`

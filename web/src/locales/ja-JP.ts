@@ -421,6 +421,15 @@ export default {
     notes: "備考",
     editKeyNotes: "キー備考を編集",
     enterNotes: "備考を入力してください...",
+    retryStrategy: "リトライ戦略",
+    selectRetryStrategy: "リトライ戦略を選択",
+    retryStrategyAuto: "スマート切替（推奨）",
+    retryStrategyFixed: "固定グループ",
+    retryStrategySwitch: "強制切替",
+    retryStrategyAutoTooltip:
+      "マルチキーサブグループは現在のグループでリトライ、シングルキーサブグループは他のグループに切り替え",
+    retryStrategyFixedTooltip: "常に現在のサブグループ内でキーをローテーションしてリトライ",
+    retryStrategySwitchTooltip: "リトライ時は常に他のサブグループに切り替え",
   },
   subGroups: {
     addSubGroup: "サブグループを追加",

@@ -11,6 +11,9 @@ export type KeyStatus = "active" | "invalid" | undefined;
 // 分组类型
 export type GroupType = "standard" | "aggregate";
 
+// 重试策略类型（仅用于聚合分组）
+export type RetryStrategy = "auto" | "fixed" | "switch";
+
 // 渠道类型
 export type ChannelType = "openai" | "gemini" | "anthropic";
 
@@ -81,6 +84,7 @@ export interface Group {
   header_rules?: HeaderRule[];
   proxy_keys: string;
   group_type?: GroupType;
+  retry_strategy?: RetryStrategy; // 重试策略（仅用于聚合分组）
   sub_groups?: SubGroupInfo[]; // 子分组列表（仅聚合分组）
   sub_group_ids?: number[]; // 子分组ID列表
   created_at?: string;
