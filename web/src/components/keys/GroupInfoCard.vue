@@ -332,6 +332,34 @@ function resetPage() {
   showCopyModal.value = false;
   expandedName.value = [];
 }
+
+// 获取重试策略显示标签
+function getRetryStrategyLabel(strategy: string | undefined): string {
+  switch (strategy) {
+    case "auto":
+      return t("keys.retryStrategyAuto");
+    case "fixed":
+      return t("keys.retryStrategyFixed");
+    case "switch":
+      return t("keys.retryStrategySwitch");
+    default:
+      return t("keys.retryStrategyAuto");
+  }
+}
+
+// 获取重试策略标签类型
+function getRetryStrategyType(strategy: string | undefined): "success" | "info" | "warning" {
+  switch (strategy) {
+    case "auto":
+      return "success";
+    case "fixed":
+      return "info";
+    case "switch":
+      return "warning";
+    default:
+      return "success";
+  }
+}
 </script>
 
 <template>
@@ -558,6 +586,14 @@ function resetPage() {
                     <n-grid-item>
                       <n-form-item :label="`${t('keys.sortOrder')}：`">
                         {{ group?.sort }}
+                      </n-form-item>
+                    </n-grid-item>
+                    <!-- 聚合分组显示重试策略 -->
+                    <n-grid-item v-if="isAggregateGroup">
+                      <n-form-item :label="`${t('keys.retryStrategy')}：`">
+                        <n-tag :type="getRetryStrategyType(group?.retry_strategy)" size="small">
+                          {{ getRetryStrategyLabel(group?.retry_strategy) }}
+                        </n-tag>
                       </n-form-item>
                     </n-grid-item>
                     <!-- 标准分组才显示测试模型和测试路径 -->
