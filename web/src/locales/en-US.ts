@@ -430,6 +430,12 @@ export default {
       "Multi-key sub-groups stay in current group for retry, single-key sub-groups switch to other groups",
     retryStrategyFixedTooltip: "Always retry within the current sub-group by rotating keys",
     retryStrategySwitchTooltip: "Always switch to another sub-group on retry",
+    uploadFile: "Upload File",
+    manualInput: "Manual Input",
+    clickOrDragFile: "Click to upload",
+    onlyTxtFileSupported: "Only .txt files are supported",
+    fileImportedSuccessfully: "File imported successfully",
+    fileReadError: "Failed to read file",
   },
   subGroups: {
     addSubGroup: "Add Sub Group",

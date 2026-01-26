@@ -414,6 +414,12 @@ export default {
       "多密钥子分组保持当前分组重试，单密钥子分组切换到其他分组",
     retryStrategyFixedTooltip: "始终保持在当前子分组内轮换密钥重试",
     retryStrategySwitchTooltip: "重试时总是切换到其他子分组",
+    uploadFile: "上传文件",
+    manualInput: "手动输入",
+    clickOrDragFile: "点击上传",
+    onlyTxtFileSupported: "仅支持 .txt 文件",
+    fileImportedSuccessfully: "文件导入成功",
+    fileReadError: "文件读取失败",
   },
   subGroups: {
     addSubGroup: "添加子分组",

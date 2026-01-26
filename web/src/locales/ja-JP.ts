@@ -430,6 +430,12 @@ export default {
       "マルチキーサブグループは現在のグループでリトライ、シングルキーサブグループは他のグループに切り替え",
     retryStrategyFixedTooltip: "常に現在のサブグループ内でキーをローテーションしてリトライ",
     retryStrategySwitchTooltip: "リトライ時は常に他のサブグループに切り替え",
+    uploadFile: "ファイルをアップロード",
+    manualInput: "手動入力",
+    clickOrDragFile: "アップロードをクリック",
+    onlyTxtFileSupported: ".txt ファイルのみサポート",
+    fileImportedSuccessfully: "ファイルのインポートに成功しました",
+    fileReadError: "ファイルの読み取りに失敗しました",
   },
   subGroups: {
     addSubGroup: "サブグループを追加",
