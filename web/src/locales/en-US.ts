@@ -355,6 +355,15 @@ export default {
     addHeader: "Add Header",
     paramOverridesTooltip:
       "Define the API request parameters to be overridden using JSON format. These parameters will be merged with the original parameters when sending the request.",
+    forcePathSwitch: "Force Request Path",
+    forcePathSwitchTooltip:
+      "When enabled, the system ignores the caller's /v1/chat/completions or /v1/responses and forces the configured path. Only applies to OpenAI standard groups.",
+    forcePathSwitchEnabled: "Enabled, force target path",
+    forcePathSwitchDisabled: "Disabled, pass through caller path",
+    forcePathSwitchTarget: "Force target path",
+    forcePathSwitchTargetTooltip:
+      "Enter the upstream path used when force switch is enabled. Defaults to /v1/chat/completions and can be any valid path.",
+    forcePathSwitchTargetPlaceholder: "e.g. /v1/chat/completions",
     modelRedirectPolicy: "Unconfigured Model Policy",
     modelRedirectPolicyTooltip:
       "Choose how to handle requests for models not configured in redirect rules",

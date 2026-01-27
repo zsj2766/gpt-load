@@ -77,6 +77,8 @@ var MessagesZhCN = map[string]string{
 	"validation.standard_group_requires_upstreams_testmodel": "转换为标准分组需要提供上游服务器和测试模型",
 	"validation.aggregate_no_model_redirect": "聚合分组不支持配置模型重定向规则",
 	"validation.invalid_retry_strategy": "无效的重试策略，必须是 'auto'、'fixed' 或 'switch'",
+	"validation.force_path_switch_openai_only": "强制转换仅支持 OpenAI 标准分组",
+	"validation.invalid_target_path":         "无效的目标路径，必须是以 / 开头的路径且不能包含完整 URL",
 
 	// Task related
 	"task.validation_started": "密钥验证任务已开始",
@@ -166,6 +168,10 @@ var MessagesZhCN = map[string]string{
 	"config.key_validation_concurrency_desc": "后台定时验证无效 Key 时的并发数，如果使用SQLite或者运行环境性能不佳，请尽量保证20以下，避免过高的并发导致数据不一致问题。",
 	"config.key_validation_timeout":          "密钥验证超时（秒）",
 	"config.key_validation_timeout_desc":     "后台定时验证单个 Key 时的 API 请求超时时间（秒）。",
+	"config.force_path_switch":               "强制转换请求路径",
+	"config.force_path_switch_desc":          "开启后，OpenAI 标准分组会强制将请求路径改为目标路径（默认 /v1/chat/completions）。关闭则按调用方原始路径透传。",
+	"config.target_path":                     "强制转换目标路径",
+	"config.target_path_desc":                "配置强制转换时实际请求的上游路径，默认 /v1/chat/completions，可自定义为任意有效路径。",
 
 	// Category labels
 	"config.category.basic":   "基础参数",

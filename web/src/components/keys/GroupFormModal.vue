@@ -74,6 +74,8 @@ interface GroupFormData {
   param_overrides: string;
   model_redirect_rules: string;
   model_redirect_strict: boolean;
+  force_path_switch: boolean;
+  target_path: string;
   config: Record<string, number | string | boolean>;
   configItems: ConfigItem[];
   header_rules: HeaderRuleItem[];
@@ -99,6 +101,8 @@ const formData = reactive<GroupFormData>({
   param_overrides: "",
   model_redirect_rules: "",
   model_redirect_strict: false,
+  force_path_switch: false,
+  target_path: "",
   config: {},
   configItems: [] as ConfigItem[],
   header_rules: [] as HeaderRuleItem[],
@@ -110,6 +114,10 @@ const channelTypeOptions = ref<{ label: string; value: string }[]>([]);
 const configOptions = ref<GroupConfigOption[]>([]);
 const channelTypesFetched = ref(false);
 const configOptionsFetched = ref(false);
+const excludedConfigKeys = ["force_path_switch", "target_path"];
+const filteredConfigOptions = computed(() =>
+  configOptions.value.filter(option => !excludedConfigKeys.includes(option.key))
+);
 
 // 跟踪用户是否已手动修改过字段（仅在新增模式下使用）
 const userModifiedFields = ref({
@@ -294,6 +302,8 @@ function resetForm() {
     param_overrides: "",
     model_redirect_rules: "",
     model_redirect_strict: false,
+    force_path_switch: false,
+    target_path: "",
     config: {},
     configItems: [],
     header_rules: [],
@@ -336,6 +346,8 @@ function loadGroupData() {
     param_overrides: JSON.stringify(props.group.param_overrides || {}, null, 2),
     model_redirect_rules: JSON.stringify(props.group.model_redirect_rules || {}, null, 2),
     model_redirect_strict: props.group.model_redirect_strict || false,
+    force_path_switch: props.group.force_path_switch || false,
+    target_path: props.group.target_path || "",
     config: {},
     configItems,
     header_rules: (props.group.header_rules || []).map((rule: HeaderRuleItem) => ({
@@ -501,7 +513,7 @@ async function handleSubmit() {
     const config: Record<string, number | string | boolean> = {};
     formData.configItems.forEach((item: ConfigItem) => {
       if (item.key && item.key.trim()) {
-        const option = configOptions.value.find(opt => opt.key === item.key);
+        const option = filteredConfigOptions.value.find(opt => opt.key === item.key);
         if (option && typeof option.default_value === "number" && typeof item.value === "string") {
           const numValue = Number(item.value);
           config[item.key] = isNaN(numValue) ? 0 : numValue;
@@ -510,6 +522,11 @@ async function handleSubmit() {
         }
       }
     });
+
+    if (formData.channel_type === "openai") {
+      config.force_path_switch = formData.force_path_switch;
+      config.target_path = formData.target_path.trim();
+    }
 
     // 构建提交数据
     const submitData = {
@@ -883,7 +900,7 @@ async function handleSubmit() {
                         <n-select
                           v-model:value="configItem.key"
                           :options="
-                            configOptions.map(opt => ({
+                            filteredConfigOptions.map(opt => ({
                               label: opt.name,
                               value: opt.key,
                               disabled:
@@ -945,7 +962,7 @@ async function handleSubmit() {
                     @click="addConfigItem"
                     dashed
                     style="width: 100%"
-                    :disabled="formData.configItems.length >= configOptions.length"
+                    :disabled="formData.configItems.length >= filteredConfigOptions.length"
                   >
                     <template #icon>
                       <n-icon :component="Add" />
@@ -1134,6 +1151,48 @@ async function handleSubmit() {
                       {{ t("keys.modelRedirectRulesDescription") }}
                     </div>
                   </template>
+                </n-form-item>
+              </div>
+
+              <div class="config-section" v-if="formData.channel_type === 'openai'">
+                <h5 class="config-title-with-tooltip">
+                  {{ t("keys.forcePathSwitch") }}
+                  <n-tooltip trigger="hover" placement="top">
+                    <template #trigger>
+                      <n-icon :component="HelpCircleOutline" class="help-icon config-help" />
+                    </template>
+                    {{ t("keys.forcePathSwitchTooltip") }}
+                  </n-tooltip>
+                </h5>
+                <n-form-item path="force_path_switch">
+                  <div style="display: flex; align-items: center; gap: 12px">
+                    <n-switch v-model:value="formData.force_path_switch" />
+                    <span style="font-size: 14px; color: #666">
+                      {{
+                        formData.force_path_switch
+                          ? t("keys.forcePathSwitchEnabled")
+                          : t("keys.forcePathSwitchDisabled")
+                      }}
+                    </span>
+                  </div>
+                </n-form-item>
+                <n-form-item path="target_path">
+                  <template #label>
+                    <div class="form-label-with-tooltip">
+                      {{ t("keys.forcePathSwitchTarget") }}
+                      <n-tooltip trigger="hover" placement="top">
+                        <template #trigger>
+                          <n-icon :component="HelpCircleOutline" class="help-icon config-help" />
+                        </template>
+                        {{ t("keys.forcePathSwitchTargetTooltip") }}
+                      </n-tooltip>
+                    </div>
+                  </template>
+                  <n-input
+                    v-model:value="formData.target_path"
+                    :placeholder="t('keys.forcePathSwitchTargetPlaceholder')"
+                    :disabled="!formData.force_path_switch"
+                  />
                 </n-form-item>
               </div>
 

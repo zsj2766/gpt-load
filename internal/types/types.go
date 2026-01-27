@@ -41,6 +41,13 @@ type SystemSettings struct {
 	KeyValidationConcurrency     int `json:"key_validation_concurrency" default:"10" name:"config.key_validation_concurrency" category:"config.category.key" desc:"config.key_validation_concurrency_desc" validate:"required,min=1"`
 	KeyValidationTimeoutSeconds  int `json:"key_validation_timeout_seconds" default:"20" name:"config.key_validation_timeout" category:"config.category.key" desc:"config.key_validation_timeout_desc" validate:"required,min=1"`
 
+	RetryStrategy string `json:"retry_strategy" default:"auto" name:"config.retry_strategy" category:"config.category.key" desc:"config.retry_strategy_desc"`
+
+	ForcePathSwitch bool   `json:"force_path_switch" default:"false" name:"config.force_path_switch" category:"config.category.request" desc:"config.force_path_switch_desc"`
+	TargetPath      string `json:"target_path" default:"/v1/chat/completions" name:"config.target_path" category:"config.category.request" desc:"config.target_path_desc"`
+
+	EndpointStrategy string `json:"endpoint_strategy" default:"passthrough" name:"config.endpoint_strategy" category:"config.category.request" desc:"config.endpoint_strategy_desc"`
+
 	// For cache
 	ProxyKeysMap map[string]struct{} `json:"-"`
 }

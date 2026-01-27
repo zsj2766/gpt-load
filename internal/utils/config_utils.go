@@ -180,10 +180,30 @@ func GetValidationEndpoint(group *models.Group) string {
 	// Return default validation endpoint based on channel type
 	switch group.ChannelType {
 	case "openai":
-		return "/v1/chat/completions"
+		return OpenAIChatCompletionsPath
 	case "anthropic":
 		return "/v1/messages"
 	default:
 		return ""
 	}
+}
+
+const (
+	OpenAIChatCompletionsPath = "/v1/chat/completions"
+)
+
+func IsValidForceTargetPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	if !strings.HasPrefix(path, "/") {
+		return false
+	}
+	if strings.Contains(path, "://") {
+		return false
+	}
+	if strings.Contains(path, "//") {
+		return false
+	}
+	return true
 }

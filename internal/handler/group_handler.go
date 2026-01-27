@@ -123,6 +123,8 @@ type GroupUpdateRequest struct {
 	RetryStrategy       *string             `json:"retry_strategy,omitempty"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage     `json:"upstreams"`
 	ChannelType         *string             `json:"channel_type,omitempty"`
+	ForcePathSwitch     *bool               `json:"force_path_switch,omitempty"`
+	TargetPath          *string             `json:"target_path,omitempty"`
 	Sort                *int                `json:"sort"`
 	TestModel           string              `json:"test_model"`
 	ValidationEndpoint  *string             `json:"validation_endpoint,omitempty"`
@@ -156,6 +158,8 @@ func (s *Server) UpdateGroup(c *gin.Context) {
 		RetryStrategy:       req.RetryStrategy,
 		ChannelType:         req.ChannelType,
 		Sort:                req.Sort,
+		ForcePathSwitch:     req.ForcePathSwitch,
+		TargetPath:          req.TargetPath,
 		ValidationEndpoint:  req.ValidationEndpoint,
 		ParamOverrides:      req.ParamOverrides,
 		ModelRedirectRules:  req.ModelRedirectRules,
@@ -198,6 +202,8 @@ type GroupResponse struct {
 	RetryStrategy       string              `json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           datatypes.JSON      `json:"upstreams"`
 	ChannelType         string              `json:"channel_type"`
+	ForcePathSwitch     bool                `json:"force_path_switch"`
+	TargetPath          string              `json:"target_path"`
 	Sort                int                 `json:"sort"`
 	TestModel           string              `json:"test_model"`
 	ValidationEndpoint  string              `json:"validation_endpoint"`
@@ -243,6 +249,8 @@ func (s *Server) newGroupResponse(group *models.Group) *GroupResponse {
 		RetryStrategy:       group.RetryStrategy,
 		Upstreams:           group.Upstreams,
 		ChannelType:         group.ChannelType,
+		ForcePathSwitch:     group.ForcePathSwitch,
+		TargetPath:          group.TargetPath,
 		Sort:                group.Sort,
 		TestModel:           group.TestModel,
 		ValidationEndpoint:  group.ValidationEndpoint,

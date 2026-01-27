@@ -38,6 +38,10 @@ type GroupConfig struct {
 	KeyValidationConcurrency     *int    `json:"key_validation_concurrency,omitempty"`
 	KeyValidationTimeoutSeconds  *int    `json:"key_validation_timeout_seconds,omitempty"`
 	EnableRequestBodyLogging     *bool   `json:"enable_request_body_logging,omitempty"`
+	RetryStrategy                *string `json:"retry_strategy,omitempty"`
+	ForcePathSwitch              *bool   `json:"force_path_switch,omitempty"`
+	TargetPath                   *string `json:"target_path,omitempty"`
+	EndpointStrategy             *string `json:"endpoint_strategy,omitempty"`
 }
 
 // HeaderRule defines a single rule for header manipulation.
@@ -98,6 +102,8 @@ type Group struct {
 	Upstreams            datatypes.JSON       `gorm:"type:json;not null" json:"upstreams"`
 	ValidationEndpoint   string               `gorm:"type:varchar(255)" json:"validation_endpoint"`
 	ChannelType          string               `gorm:"type:varchar(50);not null" json:"channel_type"`
+	ForcePathSwitch      bool                 `gorm:"-" json:"force_path_switch"`
+	TargetPath           string               `gorm:"-" json:"target_path"`
 	Sort                 int                  `gorm:"default:0" json:"sort"`
 	TestModel            string               `gorm:"type:varchar(255);not null" json:"test_model"`
 	ParamOverrides       datatypes.JSONMap    `gorm:"type:json" json:"param_overrides"`

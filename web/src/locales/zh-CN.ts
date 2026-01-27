@@ -342,6 +342,15 @@ export default {
     addHeader: "添加请求头",
     paramOverridesTooltip:
       "使用JSON格式定义要覆盖的API请求参数。这些参数会在发送请求时合并到原始参数中",
+    forcePathSwitch: "强制转换请求路径",
+    forcePathSwitchTooltip:
+      "开启后，系统会忽略调用方传入的 /v1/chat/completions 或 /v1/responses，并强制转换为指定路径。仅对 OpenAI 标准分组生效",
+    forcePathSwitchEnabled: "已开启，按目标路径强制转换",
+    forcePathSwitchDisabled: "已关闭，按调用方原始路径透传",
+    forcePathSwitchTarget: "强制转换目标路径",
+    forcePathSwitchTargetTooltip:
+      "填写开启强制转换后实际请求上游的路径，默认 /v1/chat/completions，可自定义任意有效路径",
+    forcePathSwitchTargetPlaceholder: "例如 /v1/chat/completions",
     modelRedirectPolicy: "未配置模型策略",
     modelRedirectPolicyTooltip: "选择如何处理未在重定向规则中配置的模型请求",
     modelRedirectStrictMode: "严格模式：拒绝未配置的模型请求（返回404）",

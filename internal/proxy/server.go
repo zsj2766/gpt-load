@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"gpt-load/internal/channel"
@@ -68,6 +70,11 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 		return
 	}
 
+	if err := ps.applyForcePathSwitch(c, originalGroup); err != nil {
+		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
+		return
+	}
+
 	// Select sub-group if this is an aggregate group
 	subGroupName, err := ps.subGroupManager.SelectSubGroup(originalGroup)
 	if err != nil {
@@ -111,6 +118,65 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 	isStream := channelHandler.IsStreamRequest(c, bodyBytes)
 
 	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0, nil)
+}
+
+func (ps *ProxyServer) applyForcePathSwitch(c *gin.Context, group *models.Group) error {
+	if group.ChannelType != "openai" {
+		return nil
+	}
+	if !group.EffectiveConfig.ForcePathSwitch {
+		return nil
+	}
+	targetPath := strings.TrimSpace(group.EffectiveConfig.TargetPath)
+	if targetPath == "" {
+		targetPath = utils.OpenAIChatCompletionsPath
+	}
+	if !utils.IsValidForceTargetPath(targetPath) {
+		return fmt.Errorf("invalid target_path: %s", targetPath)
+	}
+	currentPath := c.Param("path")
+	if currentPath == targetPath {
+		return nil
+	}
+	updated := false
+	for i := range c.Params {
+		if c.Params[i].Key == "path" {
+			c.Params[i].Value = targetPath
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		c.Params = append(c.Params, gin.Param{Key: "path", Value: targetPath})
+	}
+	c.Request.URL.Path = strings.Replace(c.Request.URL.Path, currentPath, targetPath, 1)
+	return nil
+}
+
+func (ps *ProxyServer) applyForcePathSwitchToRequest(url *url.URL, group *models.Group) error {
+	if group.ChannelType != "openai" {
+		return nil
+	}
+	if !group.EffectiveConfig.ForcePathSwitch {
+		return nil
+	}
+	targetPath := strings.TrimSpace(group.EffectiveConfig.TargetPath)
+	if targetPath == "" {
+		targetPath = utils.OpenAIChatCompletionsPath
+	}
+	if !utils.IsValidForceTargetPath(targetPath) {
+		return fmt.Errorf("invalid target_path: %s", targetPath)
+	}
+	currentPath := url.Path
+	if strings.HasSuffix(currentPath, targetPath) {
+		return nil
+	}
+	basePath := "/proxy/" + group.Name
+	if strings.HasPrefix(currentPath, basePath) {
+		url.Path = basePath + targetPath
+		return nil
+	}
+	return nil
 }
 
 // executeRequestWithRetry is the core recursive function for handling requests and retries.
@@ -166,6 +232,12 @@ func (ps *ProxyServer) executeRequestWithRetry(
 	req.Header.Del("Authorization")
 	req.Header.Del("X-Api-Key")
 	req.Header.Del("X-Goog-Api-Key")
+
+	if err := ps.applyForcePathSwitchToRequest(req.URL, group); err != nil {
+		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
+		ps.logRequest(c, originalGroup, group, apiKey, startTime, http.StatusBadRequest, err, isStream, upstreamURL, channelHandler, bodyBytes, models.RequestTypeFinal)
+		return
+	}
 
 	// Apply model redirection
 	finalBodyBytes, err := channelHandler.ApplyModelRedirect(req, bodyBytes, group)

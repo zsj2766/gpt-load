@@ -377,6 +377,14 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 					}
 				}
 			}
+			if key == "target_path" {
+				if strVal == "" {
+					break
+				}
+				if !utils.IsValidForceTargetPath(strVal) {
+					return fmt.Errorf("invalid target_path: %s", strVal)
+				}
+			}
 		case reflect.Bool:
 			_, ok := value.(bool)
 			if !ok {

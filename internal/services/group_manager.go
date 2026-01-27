@@ -70,6 +70,9 @@ func (gm *GroupManager) Initialize() error {
 		for _, group := range groups {
 			g := *group
 			g.EffectiveConfig = gm.settingsManager.GetEffectiveConfig(g.Config)
+			if g.GroupType == "aggregate" && g.RetryStrategy != "" {
+				g.EffectiveConfig.RetryStrategy = g.RetryStrategy
+			}
 			g.ProxyKeysMap = utils.StringToSet(g.ProxyKeys, ",")
 
 			// Parse header rules with error handling

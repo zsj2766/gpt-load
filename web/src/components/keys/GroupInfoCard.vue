@@ -65,6 +65,10 @@ const expandedName = ref<string[]>([]);
 const configOptions = ref<GroupConfigOption[]>([]);
 const showProxyKeys = ref(false);
 const parentAggregateGroups = ref<ParentAggregateGroup[]>([]);
+const excludedConfigKeys = ["force_path_switch", "target_path"];
+const filteredConfigEntries = computed(() =>
+  Object.entries(props.group?.config || {}).filter(([key]) => !excludedConfigKeys.includes(key))
+);
 
 const proxyKeysDisplay = computed(() => {
   if (!props.group?.proxy_keys) {
@@ -80,7 +84,8 @@ const hasAdvancedConfig = computed(() => {
   return (
     (props.group?.config && Object.keys(props.group.config).length > 0) ||
     props.group?.param_overrides ||
-    (props.group?.header_rules && props.group.header_rules.length > 0)
+    (props.group?.header_rules && props.group.header_rules.length > 0) ||
+    props.group?.force_path_switch
   );
 });
 
@@ -715,7 +720,7 @@ function getRetryStrategyType(strategy: string | undefined): "success" | "info" 
               <div class="detail-section" v-if="!isAggregateGroup && hasAdvancedConfig">
                 <h4 class="section-title">{{ t("keys.advancedConfig") }}</h4>
                 <n-form label-placement="left">
-                  <n-form-item v-for="(value, key) in group?.config || {}" :key="key">
+                  <n-form-item v-for="([key, value], index) in filteredConfigEntries" :key="`${key}-${index}`">
                     <template #label>
                       <n-tooltip trigger="hover" :delay="300" placement="top">
                         <template #trigger>
@@ -786,6 +791,15 @@ function getRetryStrategyType(strategy: string | undefined): "success" | "info" 
                     <pre class="config-json">{{
                       JSON.stringify(group?.model_redirect_rules || {}, null, 2)
                     }}</pre>
+                  </n-form-item>
+                  <n-form-item
+                    v-if="group?.force_path_switch"
+                    :label="`${t('keys.forcePathSwitch')}：`"
+                    :span="2"
+                  >
+                    <n-tag type="warning" size="small">
+                      {{ group?.target_path || '/v1/chat/completions' }}
+                    </n-tag>
                   </n-form-item>
                   <n-form-item
                     v-if="group?.param_overrides"

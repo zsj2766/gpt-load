@@ -77,6 +77,8 @@ var MessagesEnUS = map[string]string{
 	"validation.standard_group_requires_upstreams_testmodel": "Converting to standard group requires providing upstreams and test model",
 	"validation.aggregate_no_model_redirect": "Aggregate groups do not support model redirect rules",
 	"validation.invalid_retry_strategy": "Invalid retry strategy. Must be 'auto', 'fixed', or 'switch'",
+	"validation.force_path_switch_openai_only": "Force path switch is only supported for OpenAI standard groups",
+	"validation.invalid_target_path":         "Invalid target path, it must start with / and cannot contain a full URL",
 
 	// Task related
 	"task.validation_started": "Key validation task started",
@@ -166,6 +168,10 @@ var MessagesEnUS = map[string]string{
 	"config.key_validation_concurrency_desc": "Concurrency level for background invalid key validation. Keep below 20 for SQLite or low-performance environments to avoid data consistency issues.",
 	"config.key_validation_timeout":          "Key Validation Timeout (seconds)",
 	"config.key_validation_timeout_desc":     "API request timeout (seconds) when validating a single key in the background.",
+	"config.force_path_switch":               "Force Request Path",
+	"config.force_path_switch_desc":          "When enabled, OpenAI standard groups force the request path to the target path (default /v1/chat/completions). Disabled will pass through caller path.",
+	"config.target_path":                     "Force Target Path",
+	"config.target_path_desc":                "Upstream path used for force switching. Defaults to /v1/chat/completions and can be any valid path.",
 
 	// Category labels
 	"config.category.basic":   "Basic",

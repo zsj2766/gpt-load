@@ -354,6 +354,15 @@ export default {
     addHeader: "ヘッダー追加",
     paramOverridesTooltip:
       "JSON形式を使用して、上書きするAPIリクエストパラメータを定義します。これらのパラメータは、リクエスト送信時に元のパラメータにマージされます。",
+    forcePathSwitch: "リクエストパスを強制変換",
+    forcePathSwitchTooltip:
+      "有効にすると、呼び出し元の /v1/chat/completions または /v1/responses を無視し、指定パスへ強制変換します。OpenAI の標準グループのみ対象です",
+    forcePathSwitchEnabled: "有効：指定パスへ強制変換",
+    forcePathSwitchDisabled: "無効：呼び出し元のパスを透過",
+    forcePathSwitchTarget: "強制変換ターゲットパス",
+    forcePathSwitchTargetTooltip:
+      "強制変換時に使用する上流パスを入力します。デフォルトは /v1/chat/completions で、有効なパスなら任意に設定できます",
+    forcePathSwitchTargetPlaceholder: "例: /v1/chat/completions",
     modelRedirectPolicy: "未設定モデルポリシー",
     modelRedirectPolicyTooltip:
       "リダイレクトルールで設定されていないモデルのリクエストをどう処理するか選択",

@@ -114,6 +114,8 @@ type GroupUpdateParams struct {
 	HasUpstreams        bool
 	ChannelType         *string
 	Sort                *int
+	ForcePathSwitch     *bool
+	TargetPath          *string
 	TestModel           string
 	HasTestModel        bool
 	ValidationEndpoint  *string
@@ -235,6 +237,32 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		retryStrategy = ""
 	}
 
+	forcePathSwitch := false
+	targetPath := ""
+	if params.Config != nil {
+		if forceRaw, ok := params.Config["force_path_switch"]; ok {
+			if forceVal, ok := forceRaw.(bool); ok {
+				forcePathSwitch = forceVal
+			}
+		}
+		if targetRaw, ok := params.Config["target_path"]; ok {
+			if targetVal, ok := targetRaw.(string); ok {
+				targetPath = strings.TrimSpace(targetVal)
+			}
+		}
+	}
+	if forcePathSwitch {
+		if groupType != "standard" || channelType != "openai" {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+		}
+		if targetPath == "" {
+			targetPath = utils.OpenAIChatCompletionsPath
+		}
+		if !utils.IsValidForceTargetPath(targetPath) {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
+		}
+	}
+
 	// Validate model redirect rules format
 	if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
@@ -258,6 +286,35 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		HeaderRules:         headerRulesJSON,
 		ProxyKeys:           strings.TrimSpace(params.ProxyKeys),
 	}
+	applyForcePathConfig(&group)
+
+	forcePathSwitch := group.ForcePathSwitch
+	targetPath := group.TargetPath
+	if params.Config != nil {
+		if forceRaw, ok := params.Config["force_path_switch"]; ok {
+			if forceVal, ok := forceRaw.(bool); ok {
+				forcePathSwitch = forceVal
+			}
+		}
+		if targetRaw, ok := params.Config["target_path"]; ok {
+			if targetVal, ok := targetRaw.(string); ok {
+				targetPath = strings.TrimSpace(targetVal)
+			}
+		}
+	}
+	if forcePathSwitch {
+		if groupType != "standard" || channelType != "openai" {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+		}
+		if targetPath == "" {
+			targetPath = utils.OpenAIChatCompletionsPath
+		}
+		if !utils.IsValidForceTargetPath(targetPath) {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
+		}
+	}
+	group.ForcePathSwitch = forcePathSwitch
+	group.TargetPath = targetPath
 
 	tx := s.db.WithContext(ctx).Begin()
 	if err := tx.Error; err != nil {
@@ -286,6 +343,9 @@ func (s *GroupService) ListGroups(ctx context.Context) ([]models.Group, error) {
 	if err := s.db.WithContext(ctx).Order("sort asc, id desc").Find(&groups).Error; err != nil {
 		return nil, app_errors.ParseDBError(err)
 	}
+	for i := range groups {
+		applyForcePathConfig(&groups[i])
+	}
 
 	return groups, nil
 }
@@ -296,6 +356,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 	if err := s.db.WithContext(ctx).First(&group, id).Error; err != nil {
 		return nil, app_errors.ParseDBError(err)
 	}
+	applyForcePathConfig(&group)
 
 	tx := s.db.WithContext(ctx).Begin()
 	if err := tx.Error; err != nil {
@@ -361,11 +422,20 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 			supported := strings.Join(s.channelRegistry, ", ")
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_channel_type", map[string]any{"types": supported})
 		}
+		if group.ChannelType != cleanedChannelType && group.ForcePathSwitch {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+		}
 		group.ChannelType = cleanedChannelType
 	}
 
 	if params.Sort != nil {
 		group.Sort = *params.Sort
+	}
+	if params.ForcePathSwitch != nil {
+		group.ForcePathSwitch = *params.ForcePathSwitch
+	}
+	if params.TargetPath != nil {
+		group.TargetPath = strings.TrimSpace(*params.TargetPath)
 	}
 
 	if params.HasTestModel {
@@ -393,6 +463,34 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 			group.RetryStrategy = cleanedRetryStrategy
 		}
 		// For non-aggregate groups, ignore retry strategy updates
+	}
+
+	if params.Config != nil {
+		forcePathSwitch := group.ForcePathSwitch
+		targetPath := strings.TrimSpace(group.TargetPath)
+		if forceRaw, ok := params.Config["force_path_switch"]; ok {
+			if forceVal, ok := forceRaw.(bool); ok {
+				forcePathSwitch = forceVal
+			}
+		}
+		if targetRaw, ok := params.Config["target_path"]; ok {
+			if targetVal, ok := targetRaw.(string); ok {
+				targetPath = strings.TrimSpace(targetVal)
+			}
+		}
+		if forcePathSwitch {
+			if group.GroupType != "standard" || group.ChannelType != "openai" {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+			}
+			if targetPath == "" {
+				targetPath = utils.OpenAIChatCompletionsPath
+			}
+			if !utils.IsValidForceTargetPath(targetPath) {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
+			}
+		}
+		group.ForcePathSwitch = forcePathSwitch
+		group.TargetPath = targetPath
 	}
 
 	// Validate model redirect rules for aggregate groups
@@ -949,6 +1047,22 @@ func calculateRequestStats(total, failed int64) RequestStats {
 		stats.FailureRate = math.Round(rate*10000) / 10000
 	}
 	return stats
+}
+
+func applyForcePathConfig(group *models.Group) {
+	if group == nil || group.Config == nil {
+		return
+	}
+	if forceRaw, ok := group.Config["force_path_switch"]; ok {
+		if forceVal, ok := forceRaw.(bool); ok {
+			group.ForcePathSwitch = forceVal
+		}
+	}
+	if targetRaw, ok := group.Config["target_path"]; ok {
+		if targetVal, ok := targetRaw.(string); ok {
+			group.TargetPath = strings.TrimSpace(targetVal)
+		}
+	}
 }
 
 func (s *GroupService) generateUniqueGroupName(ctx context.Context, baseName string) string {
