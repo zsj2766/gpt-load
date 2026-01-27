@@ -214,7 +214,7 @@ function handleNavigateToGroup(groupId: number) {
   }
 
   .sidebar {
-    width: 240px;
+    width: 440px;
     height: calc(100vh - 159px);
   }
 }

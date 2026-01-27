@@ -46,6 +46,46 @@ const filteredGroups = computed(() => {
   );
 });
 
+const isSearching = computed(() => Boolean(searchText.value.trim()));
+
+const channelConfigs = [
+  { key: "openai", title: "OpenAI" },
+  { key: "anthropic", title: "Claude" },
+  { key: "gemini", title: "Gemini" },
+] as const;
+
+type ChannelKey = (typeof channelConfigs)[number]["key"];
+type ColumnKey = "standard" | "aggregate";
+
+interface ColumnConfig {
+  key: ColumnKey;
+  title: string;
+  createLabel: string;
+  createType: "success" | "info";
+  icon: typeof Add | typeof LinkOutline;
+  onCreate: () => void;
+}
+
+const channelKeySet = new Set<ChannelKey>(channelConfigs.map(channel => channel.key));
+
+const groupBuckets = computed(() => {
+  const buckets: Record<ColumnKey, Record<ChannelKey, Group[]>> = {
+    standard: { openai: [], anthropic: [], gemini: [] },
+    aggregate: { openai: [], anthropic: [], gemini: [] },
+  };
+
+  for (const group of filteredGroups.value) {
+    const columnKey: ColumnKey = group.group_type === "aggregate" ? "aggregate" : "standard";
+    const channelKey: ChannelKey = channelKeySet.has(group.channel_type as ChannelKey)
+      ? (group.channel_type as ChannelKey)
+      : "openai";
+
+    buckets[columnKey][channelKey].push(group);
+  }
+
+  return buckets;
+});
+
 // 监听选中项 ID 的变化，并自动滚动到该项
 watch(
   () => props.selectedGroup?.id,
@@ -86,6 +126,11 @@ function getChannelTagType(channelType: string) {
   }
 }
 
+function getChannelLabel(channelType: string) {
+  const match = channelConfigs.find(channel => channel.key === channelType);
+  return match?.title || channelType;
+}
+
 function openCreateGroupModal() {
   showGroupModal.value = true;
 }
@@ -101,6 +146,25 @@ function handleGroupCreated(group: Group) {
     emit("refresh-and-select", group.id);
   }
 }
+
+const columnConfigs = computed<ColumnConfig[]>(() => [
+  {
+    key: "standard",
+    title: t("keys.standardGroup"),
+    createLabel: t("keys.createGroup"),
+    createType: "success",
+    icon: Add,
+    onCreate: openCreateGroupModal,
+  },
+  {
+    key: "aggregate",
+    title: t("keys.aggregateGroup"),
+    createLabel: t("keys.createAggregateGroup"),
+    createType: "info",
+    icon: LinkOutline,
+    onCreate: openCreateAggregateGroupModal,
+  },
+]);
 </script>
 
 <template>
@@ -123,68 +187,81 @@ function handleGroupCreated(group: Group) {
       <!-- 分组列表 -->
       <div class="groups-section">
         <n-spin :show="loading" size="small">
-          <div v-if="filteredGroups.length === 0 && !loading" class="empty-container">
-            <n-empty
-              size="small"
-              :description="searchText ? t('keys.noMatchingGroups') : t('keys.noGroups')"
-            />
-          </div>
-          <div v-else class="groups-list">
-            <div
-              v-for="group in filteredGroups"
-              :key="group.id"
-              class="group-item"
-              :class="{
-                active: selectedGroup?.id === group.id,
-                aggregate: group.group_type === 'aggregate',
-              }"
-              @click="handleGroupClick(group)"
-              :ref="
-                el => {
-                  if (el) groupItemRefs.set(group.id, el);
-                }
-              "
-            >
-              <div class="group-icon">
-                <span v-if="group.group_type === 'aggregate'">🔗</span>
-                <span v-else-if="group.channel_type === 'openai'">🤖</span>
-                <span v-else-if="group.channel_type === 'gemini'">💎</span>
-                <span v-else-if="group.channel_type === 'anthropic'">🧠</span>
-                <span v-else>🔧</span>
-              </div>
-              <div class="group-content">
-                <div class="group-name">{{ getGroupDisplayName(group) }}</div>
-                <div class="group-meta">
-                  <n-tag size="tiny" :type="getChannelTagType(group.channel_type)">
-                    {{ group.channel_type }}
-                  </n-tag>
-                  <n-tag v-if="group.group_type === 'aggregate'" size="tiny" type="warning" round>
-                    {{ t("keys.aggregateGroup") }}
-                  </n-tag>
-                  <span v-if="group.group_type !== 'aggregate'" class="group-id">
-                    #{{ group.name }}
-                  </span>
+          <div class="groups-columns">
+            <div v-for="column in columnConfigs" :key="column.key" class="group-column">
+              <div class="column-header">{{ column.title }}</div>
+              <div class="column-body">
+                <div v-for="channel in channelConfigs" :key="channel.key" class="channel-section">
+                  <div class="channel-title">{{ channel.title }}</div>
+                  <div
+                    v-if="
+                      groupBuckets[column.key][channel.key].length === 0 &&
+                      isSearching &&
+                      !loading
+                    "
+                    class="empty-container channel-empty"
+                  >
+                    <n-empty size="small" :description="t('keys.noMatchingGroups')" />
+                  </div>
+                  <div
+                    v-else-if="groupBuckets[column.key][channel.key].length > 0"
+                    class="groups-list"
+                  >
+                    <div
+                      v-for="group in groupBuckets[column.key][channel.key]"
+                      :key="group.id"
+                      class="group-item"
+                      :class="{
+                        active: selectedGroup?.id === group.id,
+                        aggregate: group.group_type === 'aggregate',
+                      }"
+                      @click="handleGroupClick(group)"
+                      :ref="
+                        el => {
+                          if (el) groupItemRefs.set(group.id, el);
+                        }
+                      "
+                    >
+                      <div class="group-icon">
+                        <span v-if="group.group_type === 'aggregate'">🔗</span>
+                        <span v-else-if="group.channel_type === 'openai'">🤖</span>
+                        <span v-else-if="group.channel_type === 'gemini'">💎</span>
+                        <span v-else-if="group.channel_type === 'anthropic'">🧠</span>
+                        <span v-else>🔧</span>
+                      </div>
+                      <div class="group-content">
+                        <div class="group-name">{{ getGroupDisplayName(group) }}</div>
+                        <div class="group-meta">
+                          <n-tag size="tiny" :type="getChannelTagType(group.channel_type)">
+                            {{ getChannelLabel(group.channel_type) }}
+                          </n-tag>
+                          <n-tag v-if="group.group_type === 'aggregate'" size="tiny" type="warning" round>
+                            {{ t("keys.aggregateGroup") }}
+                          </n-tag>
+                          <span v-if="group.group_type !== 'aggregate'" class="group-id">
+                            #{{ group.name }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <n-button
+                    class="channel-action"
+                    :type="column.createType"
+                    size="small"
+                    block
+                    @click="column.onCreate"
+                  >
+                    <template #icon>
+                      <n-icon :component="column.icon" />
+                    </template>
+                    {{ column.createLabel }}
+                  </n-button>
                 </div>
               </div>
             </div>
           </div>
         </n-spin>
-      </div>
-
-      <!-- 添加分组按钮 -->
-      <div class="add-section">
-        <n-button type="success" size="small" block @click="openCreateGroupModal">
-          <template #icon>
-            <n-icon :component="Add" />
-          </template>
-          {{ t("keys.createGroup") }}
-        </n-button>
-        <n-button type="info" size="small" block @click="openCreateAggregateGroupModal">
-          <template #icon>
-            <n-icon :component="LinkOutline" />
-          </template>
-          {{ t("keys.createAggregateGroup") }}
-        </n-button>
       </div>
     </n-card>
     <group-form-modal v-model:show="showGroupModal" @success="handleGroupCreated" />
@@ -228,12 +305,58 @@ function handleGroupCreated(group: Group) {
 
 .groups-section {
   flex: 1;
-  height: calc(100% - 120px);
+  height: calc(100% - 41px);
   overflow: auto;
 }
 
+.groups-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.group-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.column-header {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 2px 0;
+}
+
+.column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.channel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.channel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.channel-action {
+  margin-top: 4px;
+}
+
 .empty-container {
-  padding: 20px 0;
+  padding: 12px 0;
+}
+
+.channel-empty :deep(.n-empty) {
+  padding: 0;
 }
 
 .groups-list {
@@ -358,14 +481,6 @@ function handleGroupCreated(group: Group) {
   color: white;
 }
 
-.add-section {
-  border-top: 1px solid var(--border-color);
-  padding-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 /* 滚动条样式 */
 .groups-list::-webkit-scrollbar {
   width: 4px;
@@ -382,6 +497,12 @@ function handleGroupCreated(group: Group) {
 
 .groups-list::-webkit-scrollbar-thumb:hover {
   background: var(--border-color);
+}
+
+@media (min-width: 768px) {
+  .groups-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* 暗黑模式特殊样式 */
