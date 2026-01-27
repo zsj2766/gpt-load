@@ -288,8 +288,8 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 	}
 	applyForcePathConfig(&group)
 
-	forcePathSwitch := group.ForcePathSwitch
-	targetPath := group.TargetPath
+	forcePathSwitch = group.ForcePathSwitch
+	targetPath = group.TargetPath
 	if params.Config != nil {
 		if forceRaw, ok := params.Config["force_path_switch"]; ok {
 			if forceVal, ok := forceRaw.(bool); ok {
