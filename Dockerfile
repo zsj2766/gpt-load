@@ -7,7 +7,7 @@ RUN npm install
 RUN VITE_VERSION=${VERSION} npm run build
 
 
-FROM golang:alpine AS builder2
+FROM golang:1.24-alpine AS builder2
 
 ARG VERSION=1.0.0
 ENV GO111MODULE=on \
@@ -21,7 +21,7 @@ RUN go mod download
 
 COPY . .
 COPY --from=builder /build/dist ./web/dist
-RUN go build -v -ldflags "-s -w -X gpt-load/internal/version.Version=${VERSION}" -o gpt-load
+RUN go build -v -buildvcs=false -ldflags "-s -w -X gpt-load/internal/version.Version=${VERSION}" -o gpt-load
 
 
 FROM alpine
