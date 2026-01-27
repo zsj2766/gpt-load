@@ -524,8 +524,9 @@ async function handleSubmit() {
     });
 
     if (formData.channel_type === "openai") {
-      config.force_path_switch = formData.force_path_switch;
-      config.target_path = formData.target_path.trim();
+      const targetPath = formData.target_path.trim();
+      config.force_path_switch = targetPath !== "";
+      config.target_path = targetPath;
     }
 
     // 构建提交数据
@@ -1155,43 +1156,21 @@ async function handleSubmit() {
               </div>
 
               <div class="config-section" v-if="formData.channel_type === 'openai'">
-                <h5 class="config-title-with-tooltip">
-                  {{ t("keys.forcePathSwitch") }}
-                  <n-tooltip trigger="hover" placement="top">
-                    <template #trigger>
-                      <n-icon :component="HelpCircleOutline" class="help-icon config-help" />
-                    </template>
-                    {{ t("keys.forcePathSwitchTooltip") }}
-                  </n-tooltip>
-                </h5>
-                <n-form-item path="force_path_switch">
-                  <div style="display: flex; align-items: center; gap: 12px">
-                    <n-switch v-model:value="formData.force_path_switch" />
-                    <span style="font-size: 14px; color: #666">
-                      {{
-                        formData.force_path_switch
-                          ? t("keys.forcePathSwitchEnabled")
-                          : t("keys.forcePathSwitchDisabled")
-                      }}
-                    </span>
-                  </div>
-                </n-form-item>
                 <n-form-item path="target_path">
                   <template #label>
                     <div class="form-label-with-tooltip">
-                      {{ t("keys.forcePathSwitchTarget") }}
+                      {{ t("keys.forcePathSwitch") }}
                       <n-tooltip trigger="hover" placement="top">
                         <template #trigger>
                           <n-icon :component="HelpCircleOutline" class="help-icon config-help" />
                         </template>
-                        {{ t("keys.forcePathSwitchTargetTooltip") }}
+                        {{ t("keys.forcePathSwitchTooltip") }}
                       </n-tooltip>
                     </div>
                   </template>
                   <n-input
                     v-model:value="formData.target_path"
                     :placeholder="t('keys.forcePathSwitchTargetPlaceholder')"
-                    :disabled="!formData.force_path_switch"
                   />
                 </n-form-item>
               </div>

@@ -86,8 +86,6 @@ func (s *AggregateGroupService) ValidateSubGroups(ctx context.Context, channelTy
 		// If no existing endpoint, use the first sub-group's effective endpoint
 		if validationEndpoint == "" {
 			validationEndpoint = utils.GetValidationEndpoint(&sg)
-		} else if validationEndpoint != utils.GetValidationEndpoint(&sg) {
-			return nil, NewI18nError(app_errors.ErrValidation, "validation.sub_group_validation_endpoint_mismatch", nil)
 		}
 		subGroupMap[sg.ID] = sg
 	}
