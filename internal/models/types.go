@@ -41,7 +41,6 @@ type GroupConfig struct {
 	RetryStrategy                *string `json:"retry_strategy,omitempty"`
 	ForcePathSwitch              *bool   `json:"force_path_switch,omitempty"`
 	TargetPath                   *string `json:"target_path,omitempty"`
-	EndpointStrategy             *string `json:"endpoint_strategy,omitempty"`
 }
 
 // HeaderRule defines a single rule for header manipulation.

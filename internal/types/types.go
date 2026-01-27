@@ -46,8 +46,6 @@ type SystemSettings struct {
 	ForcePathSwitch bool   `json:"force_path_switch" default:"false" name:"config.force_path_switch" category:"config.category.request" desc:"config.force_path_switch_desc"`
 	TargetPath      string `json:"target_path" default:"/v1/chat/completions" name:"config.target_path" category:"config.category.request" desc:"config.target_path_desc"`
 
-	EndpointStrategy string `json:"endpoint_strategy" default:"passthrough" name:"config.endpoint_strategy" category:"config.category.request" desc:"config.endpoint_strategy_desc"`
-
 	// For cache
 	ProxyKeysMap map[string]struct{} `json:"-"`
 }

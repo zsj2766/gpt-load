@@ -70,11 +70,6 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 		return
 	}
 
-	if err := ps.applyForcePathSwitch(c, originalGroup); err != nil {
-		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
-		return
-	}
-
 	// Select sub-group if this is an aggregate group
 	subGroupName, err := ps.subGroupManager.SelectSubGroup(originalGroup)
 	if err != nil {
@@ -93,6 +88,11 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 			response.Error(c, app_errors.ParseDBError(err))
 			return
 		}
+	}
+
+	if err := ps.applyForcePathSwitch(c, group); err != nil {
+		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
+		return
 	}
 
 	channelHandler, err := ps.channelFactory.GetChannel(group)
