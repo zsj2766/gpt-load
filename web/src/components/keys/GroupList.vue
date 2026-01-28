@@ -149,20 +149,20 @@ function handleGroupCreated(group: Group) {
 
 const columnConfigs = computed<ColumnConfig[]>(() => [
   {
-    key: "standard",
-    title: t("keys.standardGroup"),
-    createLabel: t("keys.createGroup"),
-    createType: "success",
-    icon: Add,
-    onCreate: openCreateGroupModal,
-  },
-  {
     key: "aggregate",
     title: t("keys.aggregateGroup"),
     createLabel: t("keys.createAggregateGroup"),
     createType: "info",
     icon: LinkOutline,
     onCreate: openCreateAggregateGroupModal,
+  },
+  {
+    key: "standard",
+    title: t("keys.standardGroup"),
+    createLabel: t("keys.createGroup"),
+    createType: "success",
+    icon: Add,
+    onCreate: openCreateGroupModal,
   },
 ]);
 </script>
@@ -245,19 +245,21 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
                       </div>
                     </div>
                   </div>
-                  <n-button
-                    class="channel-action"
-                    :type="column.createType"
-                    size="small"
-                    block
-                    @click="column.onCreate"
-                  >
-                    <template #icon>
-                      <n-icon :component="column.icon" />
-                    </template>
-                    {{ column.createLabel }}
-                  </n-button>
                 </div>
+              </div>
+              <div class="column-footer">
+                <n-button
+                  class="column-create-btn"
+                  :type="column.createType"
+                  size="small"
+                  block
+                  @click="column.onCreate"
+                >
+                  <template #icon>
+                    <n-icon :component="column.icon" />
+                  </template>
+                  {{ column.createLabel }}
+                </n-button>
               </div>
             </div>
           </div>
@@ -319,7 +321,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 .group-column {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  height: 100%;
 }
 
 .column-header {
@@ -327,28 +329,38 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   font-size: 13px;
   color: var(--text-secondary);
   padding: 4px 2px 0;
+  flex-shrink: 0;
 }
 
 .column-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.column-footer {
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+
+.column-create-btn {
+  margin-top: 4px;
 }
 
 .channel-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .channel-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-}
-
-.channel-action {
-  margin-top: 4px;
 }
 
 .empty-container {

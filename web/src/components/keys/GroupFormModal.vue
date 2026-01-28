@@ -326,12 +326,14 @@ function loadGroupData() {
     return;
   }
 
-  const configItems = Object.entries(props.group.config || {}).map(([key, value]) => {
-    return {
-      key,
-      value,
-    };
-  });
+  const configItems = Object.entries(props.group.config || {})
+    .filter(([key]) => !excludedConfigKeys.includes(key))
+    .map(([key, value]) => {
+      return {
+        key,
+        value,
+      };
+    });
   Object.assign(formData, {
     name: props.group.name || "",
     display_name: props.group.display_name || "",
@@ -525,8 +527,8 @@ async function handleSubmit() {
 
     if (formData.channel_type === "openai") {
       const targetPath = formData.target_path.trim();
-      config.force_path_switch = targetPath !== "";
-      config.target_path = targetPath;
+      config.force_path_switch = formData.force_path_switch;
+      config.target_path = formData.force_path_switch ? targetPath : "";
     }
 
     // 构建提交数据
@@ -872,7 +874,7 @@ async function handleSubmit() {
                   </n-tooltip>
                 </h5>
 
-                <div class="config-items">
+                <div class="config-items" v-if="formData.channel_type !== 'openai'">
                   <n-form-item
                     v-for="(configItem, index) in formData.configItems"
                     :key="index"
@@ -958,7 +960,7 @@ async function handleSubmit() {
                   </n-form-item>
                 </div>
 
-                <div style="margin-top: 12px; padding-left: 120px">
+                <div style="margin-top: 12px; padding-left: 120px" v-if="formData.channel_type !== 'openai'">
                   <n-button
                     @click="addConfigItem"
                     dashed
@@ -1156,7 +1158,7 @@ async function handleSubmit() {
               </div>
 
               <div class="config-section" v-if="formData.channel_type === 'openai'">
-                <n-form-item path="target_path">
+                <n-form-item path="force_path_switch">
                   <template #label>
                     <div class="form-label-with-tooltip">
                       {{ t("keys.forcePathSwitch") }}
@@ -1168,9 +1170,34 @@ async function handleSubmit() {
                       </n-tooltip>
                     </div>
                   </template>
+                  <div style="display: flex; align-items: center; gap: 12px">
+                    <n-switch v-model:value="formData.force_path_switch" />
+                    <span style="font-size: 14px; color: #666">
+                      {{
+                        formData.force_path_switch
+                          ? t("keys.forcePathSwitchEnabled")
+                          : t("keys.forcePathSwitchDisabled")
+                      }}
+                    </span>
+                  </div>
+                </n-form-item>
+
+                <n-form-item path="target_path">
+                  <template #label>
+                    <div class="form-label-with-tooltip">
+                      {{ t("keys.forcePathSwitchTarget") }}
+                      <n-tooltip trigger="hover" placement="top">
+                        <template #trigger>
+                          <n-icon :component="HelpCircleOutline" class="help-icon config-help" />
+                        </template>
+                        {{ t("keys.forcePathSwitchTargetTooltip") }}
+                      </n-tooltip>
+                    </div>
+                  </template>
                   <n-input
                     v-model:value="formData.target_path"
                     :placeholder="t('keys.forcePathSwitchTargetPlaceholder')"
+                    :disabled="!formData.force_path_switch"
                   />
                 </n-form-item>
               </div>
