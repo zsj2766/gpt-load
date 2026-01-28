@@ -308,7 +308,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 .groups-section {
   flex: 1;
   height: calc(100% - 41px);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .groups-columns {
@@ -316,51 +316,66 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   grid-template-columns: 1fr;
   gap: 12px;
   padding-right: 4px;
+  height: 100%;
 }
 
 .group-column {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 .column-header {
   font-weight: 600;
   font-size: 13px;
   color: var(--text-secondary);
-  padding: 4px 2px 0;
+  padding: 4px 2px 8px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 8px;
 }
 
 .column-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding-right: 4px;
 }
 
 .column-footer {
   flex-shrink: 0;
-  padding-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
 }
 
 .column-create-btn {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .channel-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
 .channel-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--border-color);
 }
 
 .empty-container {
@@ -515,6 +530,33 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   .groups-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* column-body 滚动条 */
+.column-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.column-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.column-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-bg);
+  border-radius: 2px;
+}
+
+.column-body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-color);
+}
+
+:root.dark .channel-section {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root.dark .channel-title {
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* 暗黑模式特殊样式 */
