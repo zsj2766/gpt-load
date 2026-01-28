@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -64,6 +63,9 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 	startTime := time.Now()
 	groupName := c.Param("group_name")
 
+	// Save original request path before any modifications
+	originalRequestPath := c.Param("path")
+
 	originalGroup, err := ps.groupManager.GetGroupByName(groupName)
 	if err != nil {
 		response.Error(c, app_errors.ParseDBError(err))
@@ -90,11 +92,6 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 		}
 	}
 
-	if err := ps.applyForcePathSwitch(c, group); err != nil {
-		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
-		return
-	}
-
 	channelHandler, err := ps.channelFactory.GetChannel(group)
 	if err != nil {
 		response.Error(c, app_errors.NewAPIError(app_errors.ErrInternalServer, fmt.Sprintf("Failed to get channel for group '%s': %v", groupName, err)))
@@ -117,70 +114,32 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 
 	isStream := channelHandler.IsStreamRequest(c, bodyBytes)
 
-	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0, nil)
+	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0, nil, originalRequestPath)
 }
 
-func (ps *ProxyServer) applyForcePathSwitch(c *gin.Context, group *models.Group) error {
+// getEffectivePath returns the path to use for upstream request based on group's force path switch config.
+// originalPath is the caller's original request path (e.g., /v1/responses).
+// If force_path_switch is enabled, returns the target path; otherwise returns the original path.
+func (ps *ProxyServer) getEffectivePath(originalPath string, group *models.Group) (string, error) {
 	if group.ChannelType != "openai" {
-		return nil
+		return originalPath, nil
 	}
 	if !group.EffectiveConfig.ForcePathSwitch {
-		return nil
+		return originalPath, nil
 	}
 	targetPath := strings.TrimSpace(group.EffectiveConfig.TargetPath)
 	if targetPath == "" {
 		targetPath = utils.OpenAIChatCompletionsPath
 	}
 	if !utils.IsValidForceTargetPath(targetPath) {
-		return fmt.Errorf("invalid target_path: %s", targetPath)
+		return "", fmt.Errorf("invalid target_path: %s", targetPath)
 	}
-	currentPath := c.Param("path")
-	if currentPath == targetPath {
-		return nil
-	}
-	updated := false
-	for i := range c.Params {
-		if c.Params[i].Key == "path" {
-			c.Params[i].Value = targetPath
-			updated = true
-			break
-		}
-	}
-	if !updated {
-		c.Params = append(c.Params, gin.Param{Key: "path", Value: targetPath})
-	}
-	c.Request.URL.Path = strings.Replace(c.Request.URL.Path, currentPath, targetPath, 1)
-	return nil
-}
-
-func (ps *ProxyServer) applyForcePathSwitchToRequest(url *url.URL, group *models.Group) error {
-	if group.ChannelType != "openai" {
-		return nil
-	}
-	if !group.EffectiveConfig.ForcePathSwitch {
-		return nil
-	}
-	targetPath := strings.TrimSpace(group.EffectiveConfig.TargetPath)
-	if targetPath == "" {
-		targetPath = utils.OpenAIChatCompletionsPath
-	}
-	if !utils.IsValidForceTargetPath(targetPath) {
-		return fmt.Errorf("invalid target_path: %s", targetPath)
-	}
-	currentPath := url.Path
-	if strings.HasSuffix(currentPath, targetPath) {
-		return nil
-	}
-	basePath := "/proxy/" + group.Name
-	if strings.HasPrefix(currentPath, basePath) {
-		url.Path = basePath + targetPath
-		return nil
-	}
-	return nil
+	return targetPath, nil
 }
 
 // executeRequestWithRetry is the core recursive function for handling requests and retries.
 // failedSubGroups tracks sub-group names that have failed in this request chain (for aggregate groups).
+// originalRequestPath is the caller's original request path, preserved across retries to avoid cross-contamination.
 func (ps *ProxyServer) executeRequestWithRetry(
 	c *gin.Context,
 	channelHandler channel.ChannelProxy,
@@ -191,6 +150,7 @@ func (ps *ProxyServer) executeRequestWithRetry(
 	startTime time.Time,
 	retryCount int,
 	failedSubGroups map[string]bool,
+	originalRequestPath string,
 ) {
 	cfg := group.EffectiveConfig
 
@@ -202,7 +162,17 @@ func (ps *ProxyServer) executeRequestWithRetry(
 		return
 	}
 
-	upstreamURL, err := channelHandler.BuildUpstreamURL(c.Request.URL, originalGroup.Name)
+	// Get effective path for this specific group's config
+	effectivePath, err := ps.getEffectivePath(originalRequestPath, group)
+	if err != nil {
+		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
+		return
+	}
+
+	// Build upstream URL using effective path without mutating the original request URL
+	requestURL := *c.Request.URL
+	requestURL.Path = "/proxy/" + originalGroup.Name + effectivePath
+	upstreamURL, err := channelHandler.BuildUpstreamURL(&requestURL, originalGroup.Name)
 	if err != nil {
 		response.Error(c, app_errors.NewAPIError(app_errors.ErrInternalServer, fmt.Sprintf("Failed to build upstream URL: %v", err)))
 		return
@@ -232,12 +202,6 @@ func (ps *ProxyServer) executeRequestWithRetry(
 	req.Header.Del("Authorization")
 	req.Header.Del("X-Api-Key")
 	req.Header.Del("X-Goog-Api-Key")
-
-	if err := ps.applyForcePathSwitchToRequest(req.URL, group); err != nil {
-		response.Error(c, app_errors.NewAPIError(app_errors.ErrBadRequest, err.Error()))
-		ps.logRequest(c, originalGroup, group, apiKey, startTime, http.StatusBadRequest, err, isStream, upstreamURL, channelHandler, bodyBytes, models.RequestTypeFinal)
-		return
-	}
 
 	// Apply model redirection
 	finalBodyBytes, err := channelHandler.ApplyModelRedirect(req, bodyBytes, group)
@@ -349,7 +313,7 @@ func (ps *ProxyServer) executeRequestWithRetry(
 			nextChannelHandler = channelHandler
 		}
 
-		ps.executeRequestWithRetry(c, nextChannelHandler, originalGroup, nextGroup, bodyBytes, isStream, startTime, retryCount+1, updatedFailedSubGroups)
+		ps.executeRequestWithRetry(c, nextChannelHandler, originalGroup, nextGroup, bodyBytes, isStream, startTime, retryCount+1, updatedFailedSubGroups, originalRequestPath)
 		return
 	}
 
