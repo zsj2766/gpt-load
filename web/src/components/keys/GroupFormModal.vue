@@ -874,7 +874,7 @@ async function handleSubmit() {
                   </n-tooltip>
                 </h5>
 
-                <div class="config-items" v-if="formData.channel_type !== 'openai'">
+                <div class="config-items">
                   <n-form-item
                     v-for="(configItem, index) in formData.configItems"
                     :key="index"
@@ -960,7 +960,7 @@ async function handleSubmit() {
                   </n-form-item>
                 </div>
 
-                <div style="margin-top: 12px; padding-left: 120px" v-if="formData.channel_type !== 'openai'">
+                <div style="margin-top: 12px; padding-left: 120px">
                   <n-button
                     @click="addConfigItem"
                     dashed

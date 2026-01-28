@@ -210,6 +210,8 @@ func (sm *SystemSettingsManager) UpdateSettings(settingsMap map[string]any) erro
 // GetEffectiveConfig 获取有效配置 (系统配置 + 分组覆盖)
 func (sm *SystemSettingsManager) GetEffectiveConfig(groupConfigJSON datatypes.JSONMap) types.SystemSettings {
 	effectiveConfig := sm.GetSettings()
+	effectiveConfig.ForcePathSwitch = false
+	effectiveConfig.TargetPath = ""
 
 	if groupConfigJSON == nil {
 		return effectiveConfig

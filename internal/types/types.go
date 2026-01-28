@@ -43,8 +43,8 @@ type SystemSettings struct {
 
 	RetryStrategy string `json:"retry_strategy" default:"auto" name:"config.retry_strategy" category:"config.category.key" desc:"config.retry_strategy_desc"`
 
-	ForcePathSwitch bool   `json:"force_path_switch" default:"false" name:"config.force_path_switch" category:"config.category.request" desc:"config.force_path_switch_desc"`
-	TargetPath      string `json:"target_path" default:"/v1/chat/completions" name:"config.target_path" category:"config.category.request" desc:"config.target_path_desc"`
+	ForcePathSwitch bool   `json:"-" name:"config.force_path_switch" category:"config.category.request" desc:"config.force_path_switch_desc"`
+	TargetPath      string `json:"-" name:"config.target_path" category:"config.category.request" desc:"config.target_path_desc"`
 
 	// For cache
 	ProxyKeysMap map[string]struct{} `json:"-"`
