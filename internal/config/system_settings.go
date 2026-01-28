@@ -330,6 +330,12 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 			jsonToField[jsonTag] = field
 		}
 	}
+	if field, ok := t.FieldByName("ForcePathSwitch"); ok {
+		jsonToField["force_path_switch"] = field
+	}
+	if field, ok := t.FieldByName("TargetPath"); ok {
+		jsonToField["target_path"] = field
+	}
 
 	for key, value := range configMap {
 		if value == nil {
