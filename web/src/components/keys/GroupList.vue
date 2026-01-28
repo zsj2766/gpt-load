@@ -3,7 +3,7 @@ import type { Group } from "@/types/models";
 import { getGroupDisplayName } from "@/utils/display";
 import { Add, LinkOutline, Search } from "@vicons/ionicons5";
 import { NButton, NCard, NEmpty, NInput, NSpin, NTag } from "naive-ui";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import AggregateGroupModal from "./AggregateGroupModal.vue";
 import GroupFormModal from "./GroupFormModal.vue";
@@ -33,6 +33,8 @@ const showGroupModal = ref(false);
 // 存储分组项 DOM 元素的引用
 const groupItemRefs = ref(new Map());
 const showAggregateGroupModal = ref(false);
+const activeScrollColumn = ref<ColumnKey | null>(null);
+let scrollActiveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const filteredGroups = computed(() => {
   if (!searchText.value.trim()) {
@@ -112,6 +114,32 @@ function handleGroupClick(group: Group) {
   emit("group-select", group);
 }
 
+function setActiveScrollColumn(columnKey: ColumnKey) {
+  activeScrollColumn.value = columnKey;
+  if (scrollActiveTimer) {
+    clearTimeout(scrollActiveTimer);
+  }
+  scrollActiveTimer = setTimeout(() => {
+    activeScrollColumn.value = null;
+    scrollActiveTimer = null;
+  }, 900);
+}
+
+function handleColumnScroll(columnKey: ColumnKey) {
+  setActiveScrollColumn(columnKey);
+}
+
+function handleColumnPointerDown(columnKey: ColumnKey) {
+  setActiveScrollColumn(columnKey);
+}
+
+onBeforeUnmount(() => {
+  if (scrollActiveTimer) {
+    clearTimeout(scrollActiveTimer);
+    scrollActiveTimer = null;
+  }
+});
+
 // 获取渠道类型的标签颜色
 function getChannelTagType(channelType: string) {
   switch (channelType) {
@@ -190,7 +218,12 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
           <div class="groups-columns">
             <div v-for="column in columnConfigs" :key="column.key" class="group-column">
               <div class="column-header">{{ column.title }}</div>
-              <div class="column-body">
+              <div
+                class="column-body"
+                :class="{ 'scrollbar-active': activeScrollColumn === column.key }"
+                @scroll.passive="handleColumnScroll(column.key)"
+                @pointerdown="handleColumnPointerDown(column.key)"
+              >
                 <div v-for="channel in channelConfigs" :key="channel.key" class="channel-section">
                   <div class="channel-title">{{ channel.title }}</div>
                   <div
@@ -352,8 +385,6 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   min-height: 0;
   padding-right: 4px;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
 }
 
 .column-footer {
@@ -541,37 +572,61 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 }
 
 /* column-body 滚动条 */
+.column-body {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: none;
+}
+
 .column-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.column-body.scrollbar-active,
+.column-body:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
+  scrollbar-width: thin;
+}
+
+.column-body.scrollbar-active::-webkit-scrollbar,
+.column-body:hover::-webkit-scrollbar {
   width: 6px;
 }
 
-.column-body::-webkit-scrollbar-track {
+.column-body.scrollbar-active::-webkit-scrollbar-track,
+.column-body:hover::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.08);
   border-radius: 3px;
 }
 
-.column-body::-webkit-scrollbar-thumb {
+.column-body.scrollbar-active::-webkit-scrollbar-thumb,
+.column-body:hover::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
 
-.column-body::-webkit-scrollbar-thumb:hover {
+.column-body.scrollbar-active::-webkit-scrollbar-thumb:hover,
+.column-body:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
 
-:root.dark .column-body {
+:root.dark .column-body.scrollbar-active,
+:root.dark .column-body:hover {
   scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.08);
 }
 
-:root.dark .column-body::-webkit-scrollbar-track {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-track,
+:root.dark .column-body:hover::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:root.dark .column-body::-webkit-scrollbar-thumb {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb,
+:root.dark .column-body:hover::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }
 
-:root.dark .column-body::-webkit-scrollbar-thumb:hover {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb:hover,
+:root.dark .column-body:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 

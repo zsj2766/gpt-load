@@ -65,7 +65,7 @@ const expandedName = ref<string[]>([]);
 const configOptions = ref<GroupConfigOption[]>([]);
 const showProxyKeys = ref(false);
 const parentAggregateGroups = ref<ParentAggregateGroup[]>([]);
-const excludedConfigKeys = ["force_path_switch", "target_path"];
+const excludedConfigKeys = ["force_path_switch", "target_path", "retry_strategy"];
 const filteredConfigEntries = computed(() =>
   Object.entries(props.group?.config || {}).filter(([key]) => !excludedConfigKeys.includes(key))
 );

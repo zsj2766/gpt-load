@@ -114,7 +114,7 @@ const channelTypeOptions = ref<{ label: string; value: string }[]>([]);
 const configOptions = ref<GroupConfigOption[]>([]);
 const channelTypesFetched = ref(false);
 const configOptionsFetched = ref(false);
-const excludedConfigKeys = ["force_path_switch", "target_path"];
+const excludedConfigKeys = ["force_path_switch", "target_path", "retry_strategy"];
 const filteredConfigOptions = computed(() =>
   configOptions.value.filter(option => !excludedConfigKeys.includes(option.key))
 );
