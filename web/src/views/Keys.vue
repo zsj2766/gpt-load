@@ -188,6 +188,7 @@ function handleNavigateToGroup(groupId: number) {
 .sidebar {
   width: 100%;
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .main-content {

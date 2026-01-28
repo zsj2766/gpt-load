@@ -308,7 +308,13 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 .groups-section {
   flex: 1;
   height: calc(100% - 41px);
+  min-height: 0;
   overflow: hidden;
+}
+
+.groups-section :deep(.n-spin-container),
+.groups-section :deep(.n-spin-content) {
+  height: 100%;
 }
 
 .groups-columns {
@@ -317,6 +323,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   gap: 12px;
   padding-right: 4px;
   height: 100%;
+  min-height: 0;
 }
 
 .group-column {
@@ -344,13 +351,16 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   overflow-y: auto;
   min-height: 0;
   padding-right: 4px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
 }
 
 .column-footer {
   flex-shrink: 0;
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
-  margin-top: 8px;
+  margin-top: auto;
 }
 
 .column-create-btn {
@@ -390,8 +400,6 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 100%;
-  overflow-y: auto;
   width: 100%;
 }
 
@@ -534,20 +542,37 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 
 /* column-body 滚动条 */
 .column-body::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 .column-body::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
 }
 
 .column-body::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-bg);
-  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
 }
 
 .column-body::-webkit-scrollbar-thumb:hover {
-  background: var(--border-color);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .column-body {
+  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .column-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .column-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+:root.dark .column-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 :root.dark .channel-section {
