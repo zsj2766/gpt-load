@@ -49,6 +49,9 @@ async function pollOnce() {
       if (task.result) {
         const lastTask = localStorage.getItem("last_closed_task");
         if (lastTask !== task.finished_at) {
+          if (task.finished_at) {
+            localStorage.setItem("last_closed_task", task.finished_at);
+          }
           let msg = t("task.completed");
           if (task.task_type === "KEY_VALIDATION") {
             const result = task.result as import("@/types/models").KeyValidationResult;
@@ -75,7 +78,9 @@ async function pollOnce() {
             closable: true,
             duration: 0,
             onClose: () => {
-              localStorage.setItem("last_closed_task", task.finished_at || "");
+              if (task.finished_at) {
+                localStorage.setItem("last_closed_task", task.finished_at);
+              }
             },
           });
 
