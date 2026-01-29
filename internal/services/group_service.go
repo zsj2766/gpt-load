@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"reflect"
@@ -16,6 +18,8 @@ import (
 	"gpt-load/internal/config"
 	"gpt-load/internal/encryption"
 	app_errors "gpt-load/internal/errors"
+	"gpt-load/internal/httpclient"
+	"gpt-load/internal/keypool"
 	"gpt-load/internal/models"
 	"gpt-load/internal/utils"
 
@@ -55,9 +59,11 @@ type GroupService struct {
 	groupManager          *GroupManager
 	keyService            *KeyService
 	keyImportSvc          *KeyImportService
+	keyProvider           *keypool.KeyProvider
 	encryptionSvc         encryption.Service
 	aggregateGroupService *AggregateGroupService
 	channelRegistry       []string
+	clientManager         *httpclient.HTTPClientManager
 }
 
 // NewGroupService constructs a GroupService.
@@ -69,6 +75,8 @@ func NewGroupService(
 	keyImportSvc *KeyImportService,
 	encryptionSvc encryption.Service,
 	aggregateGroupService *AggregateGroupService,
+	keyProvider *keypool.KeyProvider,
+	clientManager *httpclient.HTTPClientManager,
 ) *GroupService {
 	return &GroupService{
 		db:                    db,
@@ -76,9 +84,11 @@ func NewGroupService(
 		groupManager:          groupManager,
 		keyService:            keyService,
 		keyImportSvc:          keyImportSvc,
+		keyProvider:           keyProvider,
 		encryptionSvc:         encryptionSvc,
 		aggregateGroupService: aggregateGroupService,
 		channelRegistry:       channel.GetChannels(),
+		clientManager:         clientManager,
 	}
 }
 
@@ -903,6 +913,161 @@ func (s *GroupService) GetGroupConfigOptions() ([]ConfigOption, error) {
 	}
 
 	return options, nil
+}
+
+// GetGroupModels fetches the raw model list from a standard group upstream.
+func (s *GroupService) GetGroupModels(ctx context.Context, groupID uint, upstreamIndex int) (int, []byte, string, error) {
+	if upstreamIndex < 0 {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstream_index", nil)
+	}
+
+	var group models.Group
+	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
+		return 0, nil, "", app_errors.ParseDBError(err)
+	}
+	applyForcePathConfig(&group)
+
+	if group.GroupType != "standard" {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.group_not_standard", nil)
+	}
+
+	group.EffectiveConfig = s.settingsManager.GetEffectiveConfig(group.Config)
+
+	var upstreams []struct {
+		URL    string `json:"url"`
+		Weight int    `json:"weight"`
+	}
+	if err := json.Unmarshal(group.Upstreams, &upstreams); err != nil {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstreams", map[string]any{"error": err.Error()})
+	}
+	if upstreamIndex >= len(upstreams) {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstream_index", nil)
+	}
+
+	upstreamURL := strings.TrimSpace(upstreams[upstreamIndex].URL)
+	if upstreamURL == "" {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstreams", map[string]any{"error": "upstream URL cannot be empty"})
+	}
+
+	apiKey, err := s.getModelListKey(ctx, group.ID)
+	if err != nil {
+		return 0, nil, "", err
+	}
+
+	clientConfig := &httpclient.Config{
+		ConnectTimeout:        time.Duration(group.EffectiveConfig.ConnectTimeout) * time.Second,
+		RequestTimeout:        time.Duration(group.EffectiveConfig.RequestTimeout) * time.Second,
+		IdleConnTimeout:       time.Duration(group.EffectiveConfig.IdleConnTimeout) * time.Second,
+		MaxIdleConns:          group.EffectiveConfig.MaxIdleConns,
+		MaxIdleConnsPerHost:   group.EffectiveConfig.MaxIdleConnsPerHost,
+		ResponseHeaderTimeout: time.Duration(group.EffectiveConfig.ResponseHeaderTimeout) * time.Second,
+		ProxyURL:              group.EffectiveConfig.ProxyURL,
+		DisableCompression:    false,
+		WriteBufferSize:       32 * 1024,
+		ReadBufferSize:        32 * 1024,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	client := s.clientManager.GetClient(clientConfig)
+
+	modelPaths := []string{"/v1/models"}
+	switch group.ChannelType {
+	case "openai", "anthropic":
+		modelPaths = []string{"/v1/models"}
+	case "gemini":
+		modelPaths = []string{"/v1beta/models", "/v1/models"}
+	default:
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_channel_type", map[string]any{"types": strings.Join(s.channelRegistry, ", ")})
+	}
+
+	requestOnce := func(modelPath string) (int, []byte, string, error) {
+		requestURL := strings.TrimRight(upstreamURL, "/") + modelPath
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+		if err != nil {
+			return 0, nil, "", err
+		}
+
+		switch group.ChannelType {
+		case "openai":
+			req.Header.Set("Authorization", "Bearer "+apiKey.KeyValue)
+		case "anthropic":
+			req.Header.Set("x-api-key", apiKey.KeyValue)
+			req.Header.Set("anthropic-version", "2023-06-01")
+		case "gemini":
+			q := req.URL.Query()
+			q.Set("key", apiKey.KeyValue)
+			req.URL.RawQuery = q.Encode()
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, nil, "", err
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return 0, nil, "", err
+		}
+
+		contentType := resp.Header.Get("Content-Type")
+		return resp.StatusCode, body, contentType, nil
+	}
+
+	var lastStatus int
+	var lastBody []byte
+	var lastContentType string
+	var lastErr error
+
+	for _, modelPath := range modelPaths {
+		status, body, contentType, err := requestOnce(modelPath)
+		if err == nil && status < http.StatusBadRequest {
+			return status, body, contentType, nil
+		}
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastStatus = status
+		lastBody = body
+		lastContentType = contentType
+	}
+
+	if lastBody != nil {
+		return lastStatus, lastBody, lastContentType, nil
+	}
+	if lastErr != nil {
+		return 0, nil, "", app_errors.NewAPIError(app_errors.ErrBadGateway, lastErr.Error())
+	}
+	return 0, nil, "", app_errors.NewAPIError(app_errors.ErrBadGateway, "upstream model request failed")
+}
+
+func (s *GroupService) getModelListKey(ctx context.Context, groupID uint) (*models.APIKey, error) {
+	var apiKey models.APIKey
+	err := s.db.WithContext(ctx).
+		Where("group_id = ? AND status = ?", groupID, models.KeyStatusActive).
+		Order("id asc").
+		First(&apiKey).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NewI18nError(app_errors.ErrNoActiveKeys, "validation.no_active_keys", nil)
+		}
+		return nil, app_errors.ParseDBError(err)
+	}
+
+	decryptedKey, err := s.encryptionSvc.Decrypt(apiKey.KeyValue)
+	if err != nil {
+		logrus.WithContext(ctx).WithFields(logrus.Fields{
+			"keyID": apiKey.ID,
+			"error": err,
+		}).Debug("Failed to decrypt key value, using as-is for backward compatibility")
+		decryptedKey = apiKey.KeyValue
+	}
+
+	apiKey.KeyValue = decryptedKey
+	return &apiKey, nil
 }
 
 // validateAndCleanConfig verifies GroupConfig overrides.

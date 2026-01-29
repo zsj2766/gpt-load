@@ -79,6 +79,9 @@ var MessagesEnUS = map[string]string{
 	"validation.invalid_retry_strategy": "Invalid retry strategy. Must be 'auto', 'fixed', or 'switch'",
 	"validation.force_path_switch_openai_only": "Force path switch is only supported for OpenAI standard groups",
 	"validation.invalid_target_path":         "Invalid target path, it must start with / and cannot contain a full URL",
+	"validation.no_active_keys":              "No active keys available for this group",
+	"validation.invalid_upstream_index":      "Invalid upstream index",
+	"validation.group_not_standard":          "Group is not a standard group",
 
 	// Task related
 	"task.validation_started": "Key validation task started",

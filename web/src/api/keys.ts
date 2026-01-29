@@ -3,6 +3,7 @@ import type {
   APIKey,
   Group,
   GroupConfigOption,
+  GroupModelsResponse,
   GroupStatsResponse,
   KeyStatus,
   ParentAggregateGroup,
@@ -38,6 +39,15 @@ export const keysApi = {
   async getGroupStats(groupId: number): Promise<GroupStatsResponse> {
     const res = await http.get(`/groups/${groupId}/stats`);
     return res.data;
+  },
+
+  // 获取分组模型列表
+  async getGroupModels(groupId: number, upstreamIndex = 0): Promise<GroupModelsResponse> {
+    const res = await http.get(`/groups/${groupId}/models`, {
+      params: { upstream_index: upstreamIndex },
+      hideMessage: true,
+    });
+    return res;
   },
 
   // 获取分组可配置参数

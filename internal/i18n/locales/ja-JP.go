@@ -79,6 +79,9 @@ var MessagesJaJP = map[string]string{
 	"validation.invalid_retry_strategy": "無効なリトライ戦略です。'auto'、'fixed'、または 'switch' である必要があります",
 	"validation.force_path_switch_openai_only": "強制パス変換は OpenAI の標準グループのみ対応します",
 	"validation.invalid_target_path":         "無効なターゲットパスです。/ で始まり、完全なURLを含まない必要があります",
+	"validation.no_active_keys":              "このグループで利用可能なキーがありません",
+	"validation.invalid_upstream_index":      "無効なアップストリームのインデックス",
+	"validation.group_not_standard":          "このグループは標準グループではありません",
 
 	// Task related
 	"task.validation_started": "キー検証タスクが開始されました",

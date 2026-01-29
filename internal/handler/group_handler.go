@@ -333,6 +333,40 @@ func (s *Server) GetGroupStats(c *gin.Context) {
 	response.Success(c, stats)
 }
 
+// GetGroupModels handles fetching model list from a standard group upstream.
+func (s *Server) GetGroupModels(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		response.ErrorI18nFromAPIError(c, app_errors.ErrBadRequest, "validation.invalid_group_id")
+		return
+	}
+
+	upstreamIndex := 0
+	if rawIndex := strings.TrimSpace(c.Query("upstream_index")); rawIndex != "" {
+		parsedIndex, err := strconv.Atoi(rawIndex)
+		if err != nil {
+			response.ErrorI18nFromAPIError(c, app_errors.ErrBadRequest, "validation.invalid_upstream_index")
+			return
+		}
+		upstreamIndex = parsedIndex
+	}
+
+	status, body, contentType, err := s.GroupService.GetGroupModels(c.Request.Context(), uint(id), upstreamIndex)
+	if s.handleGroupError(c, err) {
+		return
+	}
+
+	if contentType != "" {
+		c.Header("Content-Type", contentType)
+	} else {
+		c.Header("Content-Type", "application/json")
+	}
+	c.Status(status)
+	if _, writeErr := c.Writer.Write(body); writeErr != nil {
+		logrus.WithContext(c.Request.Context()).WithError(writeErr).Error("failed to write group models response")
+	}
+}
+
 // GroupCopyRequest defines the payload for copying a group.
 type GroupCopyRequest struct {
 	CopyKeys string `json:"copy_keys"` // "none"|"valid_only"|"all"

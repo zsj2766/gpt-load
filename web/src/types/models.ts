@@ -100,6 +100,12 @@ export interface GroupConfigOption {
   default_value: string | number | boolean;
 }
 
+export interface GroupModelsResponse {
+  data?: Array<{ id?: string; name?: string; [key: string]: unknown }>;
+  models?: Array<{ name?: string; displayName?: string; id?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
 // GroupStatsResponse defines the complete statistics for a group.
 export interface GroupStatsResponse {
   key_stats: KeyStats;

@@ -2,7 +2,7 @@
 import { keysApi } from "@/api/keys";
 import { settingsApi } from "@/api/settings";
 import ProxyKeysInput from "@/components/common/ProxyKeysInput.vue";
-import type { Group, GroupConfigOption, UpstreamInfo } from "@/types/models";
+import type { Group, GroupConfigOption, GroupModelsResponse, UpstreamInfo } from "@/types/models";
 import { Add, Close, HelpCircleOutline, Remove } from "@vicons/ionicons5";
 import {
   NButton,
@@ -56,6 +56,10 @@ const { t } = useI18n();
 const message = useMessage();
 const loading = ref(false);
 const formRef = ref();
+const modelListVisible = ref(false);
+const modelListLoading = ref(false);
+const modelListError = ref("");
+const modelListItems = ref<string[]>([]);
 const modelRedirectTip = `{
   "gpt-5": "gpt-5-2025-08-07",
   "gemini-2.5-flash": "gemini-2.5-flash-preview-09-2025"
@@ -393,6 +397,52 @@ async function fetchGroupConfigOptions() {
   const options = await keysApi.getGroupConfigOptions();
   configOptions.value = options || [];
   configOptionsFetched.value = true;
+}
+
+async function handleShowModels(index: number) {
+  if (!props.group?.id || modelListLoading.value) {
+    return;
+  }
+
+  modelListVisible.value = true;
+  modelListLoading.value = true;
+  modelListError.value = "";
+  modelListItems.value = [];
+
+  try {
+    const res: GroupModelsResponse = await keysApi.getGroupModels(props.group.id, index);
+    const items: string[] = [];
+    if (Array.isArray(res?.data)) {
+      res.data.forEach(item => {
+        if (typeof item?.id === "string" && item.id.trim()) {
+          items.push(item.id);
+        } else if (typeof item?.name === "string" && item.name.trim()) {
+          items.push(item.name);
+        }
+      });
+    } else if (Array.isArray(res?.models)) {
+      res.models.forEach(item => {
+        if (typeof item?.name === "string" && item.name.trim()) {
+          items.push(item.name);
+        } else if (typeof item?.displayName === "string" && item.displayName.trim()) {
+          items.push(item.displayName);
+        } else if (typeof item?.id === "string" && item.id.trim()) {
+          items.push(item.id);
+        }
+      });
+    }
+
+    modelListItems.value = items.length ? items : [t("keys.modelListEmpty")];
+  } catch (error) {
+    console.error(error);
+    modelListError.value = t("common.requestFailed", { status: "-" });
+  } finally {
+    modelListLoading.value = false;
+  }
+}
+
+function handleModelListClose() {
+  modelListVisible.value = false;
 }
 
 // 添加配置项
@@ -833,6 +883,15 @@ async function handleSubmit() {
               </div>
               <div class="upstream-actions">
                 <n-button
+                  v-if="formData.group_type === 'standard'"
+                  size="small"
+                  secondary
+                  :disabled="!props.group?.id"
+                  @click="handleShowModels(index)"
+                >
+                  {{ t("keys.models") }}
+                </n-button>
+                <n-button
                   v-if="formData.upstreams.length > 1"
                   @click="removeUpstream(index)"
                   type="error"
@@ -1238,11 +1297,113 @@ async function handleSubmit() {
       </template>
     </n-card>
   </n-modal>
+
+  <n-modal :show="modelListVisible" @update:show="handleModelListClose" class="model-list-modal">
+    <n-card
+      class="model-list-card"
+      :title="t('keys.modelListTitle')"
+      :bordered="false"
+      size="large"
+      role="dialog"
+      aria-modal="true"
+    >
+      <template #header-extra>
+        <n-button quaternary circle @click="handleModelListClose">
+          <template #icon>
+            <n-icon :component="Close" />
+          </template>
+        </n-button>
+      </template>
+
+      <div v-if="modelListLoading" class="model-list-loading">
+        {{ t("common.loading") }}
+      </div>
+      <div v-else-if="modelListError" class="model-list-error">
+        {{ modelListError }}
+      </div>
+      <div v-else class="model-list-content">
+        <div v-for="model in modelListItems" :key="model" class="model-list-item">
+          {{ model }}
+        </div>
+      </div>
+
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end">
+          <n-button @click="handleModelListClose">{{ t("common.close") }}</n-button>
+        </div>
+      </template>
+    </n-card>
+  </n-modal>
 </template>
 
 <style scoped>
 .group-form-modal {
   width: 800px;
+}
+
+.model-list-modal {
+  width: 520px;
+}
+
+.model-list-card {
+  max-height: 70vh;
+  overflow: hidden;
+}
+
+.model-list-loading,
+.model-list-error {
+  padding: 16px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.model-list-content {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: grid;
+  gap: 8px;
+  counter-reset: modelIndex;
+}
+
+.model-list-item {
+  position: relative;
+  padding: 10px 12px 10px 44px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.model-list-item::before {
+  counter-increment: modelIndex;
+  content: counter(modelIndex);
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-color-suppl);
+  color: var(--primary-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.model-list-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .form-section {
