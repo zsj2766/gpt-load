@@ -33,8 +33,6 @@ const showGroupModal = ref(false);
 // 存储分组项 DOM 元素的引用
 const groupItemRefs = ref(new Map());
 const showAggregateGroupModal = ref(false);
-const activeScrollColumn = ref<ColumnKey | null>(null);
-let scrollActiveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const filteredGroups = computed(() => {
   if (!searchText.value.trim()) {
@@ -114,43 +112,6 @@ function handleGroupClick(group: Group) {
   emit("group-select", group);
 }
 
-function setActiveScrollColumn(columnKey: ColumnKey) {
-  activeScrollColumn.value = columnKey;
-  if (scrollActiveTimer) {
-    clearTimeout(scrollActiveTimer);
-  }
-  scrollActiveTimer = setTimeout(() => {
-    activeScrollColumn.value = null;
-    scrollActiveTimer = null;
-  }, 900);
-}
-
-function handleColumnScroll(columnKey: ColumnKey) {
-  setActiveScrollColumn(columnKey);
-}
-
-function handleColumnPointerDown(columnKey: ColumnKey) {
-  setActiveScrollColumn(columnKey);
-}
-
-function handleColumnPointerLeave(columnKey: ColumnKey) {
-  if (activeScrollColumn.value !== columnKey) {
-    return;
-  }
-  if (scrollActiveTimer) {
-    clearTimeout(scrollActiveTimer);
-    scrollActiveTimer = null;
-  }
-  activeScrollColumn.value = null;
-}
-
-onBeforeUnmount(() => {
-  if (scrollActiveTimer) {
-    clearTimeout(scrollActiveTimer);
-    scrollActiveTimer = null;
-  }
-});
-
 // 获取渠道类型的标签颜色
 function getChannelTagType(channelType: string) {
   switch (channelType) {
@@ -229,13 +190,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
           <div class="groups-columns">
             <div v-for="column in columnConfigs" :key="column.key" class="group-column">
               <div class="column-header">{{ column.title }}</div>
-              <div
-                class="column-body"
-                :class="{ 'scrollbar-active': activeScrollColumn === column.key }"
-                @scroll.passive="handleColumnScroll(column.key)"
-                @pointerdown="handleColumnPointerDown(column.key)"
-                @pointerleave="handleColumnPointerLeave(column.key)"
-              >
+              <div class="column-body">
                 <div v-for="channel in channelConfigs" :key="channel.key" class="channel-section">
                   <div class="channel-title">{{ channel.title }}</div>
                   <div
@@ -583,54 +538,63 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   }
 }
 
-/* column-body 滚动条 */
+/* column-body 滚动条 - 始终显示，hover时高亮 */
 .column-body {
-  scrollbar-color: transparent transparent;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
 }
 
 .column-body::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-.column-body.scrollbar-active {
-  scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
-  scrollbar-width: thin;
-}
-
-.column-body.scrollbar-active::-webkit-scrollbar {
   width: 6px;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.08);
+.column-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.column-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 3px;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
+.column-body:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.25) rgba(0, 0, 0, 0.05);
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+.column-body:hover::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
 }
 
-:root.dark .column-body.scrollbar-active {
-  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.08);
+.column-body:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.08);
+.column-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+:root.dark .column-body {
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+:root.dark .column-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.dark .column-body:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.05);
+}
+
+:root.dark .column-body:hover::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:root.dark .column-body:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+:root.dark .column-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 :root.dark .channel-section {
