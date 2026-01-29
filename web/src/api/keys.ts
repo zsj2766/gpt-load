@@ -47,14 +47,14 @@ export const keysApi = {
       params: { upstream_index: upstreamIndex },
       hideMessage: true,
     });
-    const response = res as GroupModelsResponse;
+    const response = res as unknown as GroupModelsResponse;
     if (Array.isArray(response?.data) || Array.isArray(response?.models)) {
       return response;
     }
     if (res && typeof res === "object" && "data" in res) {
-      return (res as { data: GroupModelsResponse }).data;
+      return (res as unknown as { data: GroupModelsResponse }).data;
     }
-    return res as GroupModelsResponse;
+    return res as unknown as GroupModelsResponse;
   },
 
   // 获取分组可配置参数
