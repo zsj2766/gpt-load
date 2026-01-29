@@ -47,7 +47,7 @@ export const keysApi = {
       params: { upstream_index: upstreamIndex },
       hideMessage: true,
     });
-    return res as GroupModelsResponse;
+    return res.data as GroupModelsResponse;
   },
 
   // 获取分组可配置参数
