@@ -133,6 +133,17 @@ function handleColumnPointerDown(columnKey: ColumnKey) {
   setActiveScrollColumn(columnKey);
 }
 
+function handleColumnPointerLeave(columnKey: ColumnKey) {
+  if (activeScrollColumn.value !== columnKey) {
+    return;
+  }
+  if (scrollActiveTimer) {
+    clearTimeout(scrollActiveTimer);
+    scrollActiveTimer = null;
+  }
+  activeScrollColumn.value = null;
+}
+
 onBeforeUnmount(() => {
   if (scrollActiveTimer) {
     clearTimeout(scrollActiveTimer);
@@ -223,6 +234,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
                 :class="{ 'scrollbar-active': activeScrollColumn === column.key }"
                 @scroll.passive="handleColumnScroll(column.key)"
                 @pointerdown="handleColumnPointerDown(column.key)"
+                @pointerleave="handleColumnPointerLeave(column.key)"
               >
                 <div v-for="channel in channelConfigs" :key="channel.key" class="channel-section">
                   <div class="channel-title">{{ channel.title }}</div>
@@ -582,51 +594,42 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   height: 0;
 }
 
-.column-body.scrollbar-active,
-.column-body:hover {
+.column-body.scrollbar-active {
   scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
   scrollbar-width: thin;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar,
-.column-body:hover::-webkit-scrollbar {
+.column-body.scrollbar-active::-webkit-scrollbar {
   width: 6px;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-track,
-.column-body:hover::-webkit-scrollbar-track {
+.column-body.scrollbar-active::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.08);
   border-radius: 3px;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-thumb,
-.column-body:hover::-webkit-scrollbar-thumb {
+.column-body.scrollbar-active::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
 
-.column-body.scrollbar-active::-webkit-scrollbar-thumb:hover,
-.column-body:hover::-webkit-scrollbar-thumb:hover {
+.column-body.scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
 
-:root.dark .column-body.scrollbar-active,
-:root.dark .column-body:hover {
+:root.dark .column-body.scrollbar-active {
   scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.08);
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-track,
-:root.dark .column-body:hover::-webkit-scrollbar-track {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb,
-:root.dark .column-body:hover::-webkit-scrollbar-thumb {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
 }
 
-:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb:hover,
-:root.dark .column-body:hover::-webkit-scrollbar-thumb:hover {
+:root.dark .column-body.scrollbar-active::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
