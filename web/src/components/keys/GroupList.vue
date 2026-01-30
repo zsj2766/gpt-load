@@ -350,7 +350,6 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding-right: 4px;
   scrollbar-gutter: stable;
 }
 
@@ -538,10 +537,10 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   }
 }
 
-/* column-body 滚动条 - 始终显示，hover时高亮 */
+/* column-body 滚动条 - 默认透明，hover时显示 */
 .column-body {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 .column-body::-webkit-scrollbar {
@@ -553,16 +552,12 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
 }
 
 .column-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: transparent;
   border-radius: 3px;
 }
 
 .column-body:hover {
-  scrollbar-color: rgba(0, 0, 0, 0.25) rgba(0, 0, 0, 0.05);
-}
-
-.column-body:hover::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
 .column-body:hover::-webkit-scrollbar-thumb {
@@ -573,20 +568,8 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
   background: rgba(0, 0, 0, 0.35);
 }
 
-:root.dark .column-body {
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-}
-
-:root.dark .column-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 :root.dark .column-body:hover {
-  scrollbar-color: rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.05);
-}
-
-:root.dark .column-body:hover::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
 :root.dark .column-body:hover::-webkit-scrollbar-thumb {
