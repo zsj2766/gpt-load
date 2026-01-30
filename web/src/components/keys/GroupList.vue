@@ -3,7 +3,7 @@ import type { Group } from "@/types/models";
 import { getGroupDisplayName } from "@/utils/display";
 import { Add, LinkOutline, Search } from "@vicons/ionicons5";
 import { NButton, NCard, NEmpty, NInput, NSpin, NTag } from "naive-ui";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import AggregateGroupModal from "./AggregateGroupModal.vue";
 import GroupFormModal from "./GroupFormModal.vue";
