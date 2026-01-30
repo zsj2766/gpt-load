@@ -32,7 +32,11 @@ async function loadGroups() {
       if (found) {
         selectedGroup.value = found;
       } else {
-        handleGroupSelect(groups.value[0]);
+        // 优先选择 OpenAI 渠道的第一个标准分组
+        const defaultGroup =
+          groups.value.find(g => g.channel_type === "openai" && g.group_type !== "aggregate") ||
+          groups.value[0];
+        handleGroupSelect(defaultGroup);
       }
     }
   } catch (error) {
