@@ -46,8 +46,6 @@ const filteredGroups = computed(() => {
   );
 });
 
-const isSearching = computed(() => Boolean(searchText.value.trim()));
-
 const channelConfigs = [
   { key: "openai", title: "OpenAI" },
   { key: "anthropic", title: "Claude" },
@@ -85,11 +83,6 @@ const groupBuckets = computed(() => {
 
   return buckets;
 });
-
-function isColumnEmpty(columnKey: ColumnKey) {
-  const bucket = groupBuckets.value[columnKey];
-  return channelConfigs.every(channel => bucket[channel.key].length === 0);
-}
 
 // 监听选中项 ID 的变化，并自动滚动到该项
 watch(
@@ -196,64 +189,51 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
             <div v-for="column in columnConfigs" :key="column.key" class="group-column">
               <div class="column-header">{{ column.title }}</div>
               <div class="column-body">
-                <div
-                  v-if="isSearching && isColumnEmpty(column.key) && !loading"
-                  class="empty-container column-empty"
-                >
-                  <n-empty size="small" :description="t('keys.noMatchingGroups')" />
-                </div>
-                <template v-else>
+                <div v-for="channel in channelConfigs" :key="channel.key" class="channel-section">
+                  <div class="channel-title">{{ channel.title }}</div>
                   <div
-                    v-for="channel in channelConfigs"
-                    :key="channel.key"
-                    v-show="!isSearching || groupBuckets[column.key][channel.key].length > 0"
-                    class="channel-section"
+                    v-if="groupBuckets[column.key][channel.key].length > 0"
+                    class="groups-list"
                   >
-                    <div class="channel-title">{{ channel.title }}</div>
                     <div
-                      v-if="groupBuckets[column.key][channel.key].length > 0"
-                      class="groups-list"
+                      v-for="group in groupBuckets[column.key][channel.key]"
+                      :key="group.id"
+                      class="group-item"
+                      :class="{
+                        active: selectedGroup?.id === group.id,
+                        aggregate: group.group_type === 'aggregate',
+                      }"
+                      @click="handleGroupClick(group)"
+                      :ref="
+                        el => {
+                          if (el) groupItemRefs.set(group.id, el);
+                        }
+                      "
                     >
-                      <div
-                        v-for="group in groupBuckets[column.key][channel.key]"
-                        :key="group.id"
-                        class="group-item"
-                        :class="{
-                          active: selectedGroup?.id === group.id,
-                          aggregate: group.group_type === 'aggregate',
-                        }"
-                        @click="handleGroupClick(group)"
-                        :ref="
-                          el => {
-                            if (el) groupItemRefs.set(group.id, el);
-                          }
-                        "
-                      >
-                        <div class="group-icon">
-                          <span v-if="group.group_type === 'aggregate'">🔗</span>
-                          <span v-else-if="group.channel_type === 'openai'">🤖</span>
-                          <span v-else-if="group.channel_type === 'gemini'">💎</span>
-                          <span v-else-if="group.channel_type === 'anthropic'">🧠</span>
-                          <span v-else>🔧</span>
-                        </div>
-                        <div class="group-content">
-                          <div class="group-name">{{ getGroupDisplayName(group) }}</div>
-                          <div class="group-meta">
-                            <n-tag size="tiny" :type="getChannelTagType(group.channel_type)">
-                              {{ getChannelLabel(group.channel_type) }}
-                            </n-tag>
-                            <n-tag v-if="group.group_type === 'aggregate'" size="tiny" type="warning" round>
-                              {{ t("keys.aggregateGroup") }}
-                            </n-tag>
-                            <span v-if="group.group_type !== 'aggregate'" class="group-id">
-                              #{{ group.name }}
-                            </span>
-                          </div>
+                      <div class="group-icon">
+                        <span v-if="group.group_type === 'aggregate'">🔗</span>
+                        <span v-else-if="group.channel_type === 'openai'">🤖</span>
+                        <span v-else-if="group.channel_type === 'gemini'">💎</span>
+                        <span v-else-if="group.channel_type === 'anthropic'">🧠</span>
+                        <span v-else>🔧</span>
+                      </div>
+                      <div class="group-content">
+                        <div class="group-name">{{ getGroupDisplayName(group) }}</div>
+                        <div class="group-meta">
+                          <n-tag size="tiny" :type="getChannelTagType(group.channel_type)">
+                            {{ getChannelLabel(group.channel_type) }}
+                          </n-tag>
+                          <n-tag v-if="group.group_type === 'aggregate'" size="tiny" type="warning" round>
+                            {{ t("keys.aggregateGroup") }}
+                          </n-tag>
+                          <span v-if="group.group_type !== 'aggregate'" class="group-id">
+                            #{{ group.name }}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </template>
+                </div>
               </div>
               <div class="column-footer">
                 <n-button
