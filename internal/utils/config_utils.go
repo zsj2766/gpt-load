@@ -181,6 +181,8 @@ func GetValidationEndpoint(group *models.Group) string {
 	switch group.ChannelType {
 	case "openai":
 		return OpenAIChatCompletionsPath
+	case "openai-response":
+		return "/v1/responses"
 	case "anthropic":
 		return "/v1/messages"
 	default:

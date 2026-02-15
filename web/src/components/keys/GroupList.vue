@@ -48,6 +48,7 @@ const filteredGroups = computed(() => {
 
 const channelConfigs = [
   { key: "openai", title: "OpenAI" },
+  { key: "openai-response", title: "OpenAI Responses" },
   { key: "anthropic", title: "Claude" },
   { key: "gemini", title: "Gemini" },
 ] as const;
@@ -68,8 +69,8 @@ const channelKeySet = new Set<ChannelKey>(channelConfigs.map(channel => channel.
 
 const groupBuckets = computed(() => {
   const buckets: Record<ColumnKey, Record<ChannelKey, Group[]>> = {
-    standard: { openai: [], anthropic: [], gemini: [] },
-    aggregate: { openai: [], anthropic: [], gemini: [] },
+    standard: { openai: [], "openai-response": [], anthropic: [], gemini: [] },
+    aggregate: { openai: [], "openai-response": [], anthropic: [], gemini: [] },
   };
 
   for (const group of filteredGroups.value) {
@@ -114,6 +115,7 @@ function handleGroupClick(group: Group) {
 function getChannelTagType(channelType: string) {
   switch (channelType) {
     case "openai":
+    case "openai-response":
       return "success";
     case "gemini":
       return "info";
@@ -213,6 +215,7 @@ const columnConfigs = computed<ColumnConfig[]>(() => [
                       <div class="group-icon">
                         <span v-if="group.group_type === 'aggregate'">🔗</span>
                         <span v-else-if="group.channel_type === 'openai'">🤖</span>
+                        <span v-else-if="group.channel_type === 'openai-response'">🔁</span>
                         <span v-else-if="group.channel_type === 'gemini'">💎</span>
                         <span v-else-if="group.channel_type === 'anthropic'">🧠</span>
                         <span v-else>🔧</span>

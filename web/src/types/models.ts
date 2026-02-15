@@ -15,7 +15,7 @@ export type GroupType = "standard" | "aggregate";
 export type RetryStrategy = "auto" | "fixed" | "switch";
 
 // 渠道类型
-export type ChannelType = "openai" | "gemini" | "anthropic";
+export type ChannelType = "openai" | "openai-response" | "gemini" | "anthropic";
 
 // 数据模型定义
 export interface APIKey {
