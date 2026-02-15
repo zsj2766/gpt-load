@@ -58,6 +58,7 @@ type GroupCreateRequest struct {
 	ParamOverrides      map[string]any      `json:"param_overrides"`
 	ModelRedirectRules  map[string]string   `json:"model_redirect_rules"`
 	ModelRedirectStrict bool                `json:"model_redirect_strict"`
+	AggregateModelRules map[string]string   `json:"aggregate_model_rules"`
 	Config              map[string]any      `json:"config"`
 	HeaderRules         []models.HeaderRule `json:"header_rules"`
 	ProxyKeys           string              `json:"proxy_keys"`
@@ -85,6 +86,7 @@ func (s *Server) CreateGroup(c *gin.Context) {
 		ParamOverrides:      req.ParamOverrides,
 		ModelRedirectRules:  req.ModelRedirectRules,
 		ModelRedirectStrict: req.ModelRedirectStrict,
+		AggregateModelRules: req.AggregateModelRules,
 		Config:              req.Config,
 		HeaderRules:         req.HeaderRules,
 		ProxyKeys:           req.ProxyKeys,
@@ -131,6 +133,7 @@ type GroupUpdateRequest struct {
 	ParamOverrides      map[string]any      `json:"param_overrides"`
 	ModelRedirectRules  map[string]string   `json:"model_redirect_rules"`
 	ModelRedirectStrict *bool               `json:"model_redirect_strict"`
+	AggregateModelRules map[string]string   `json:"aggregate_model_rules"`
 	Config              map[string]any      `json:"config"`
 	HeaderRules         []models.HeaderRule `json:"header_rules"`
 	ProxyKeys           *string             `json:"proxy_keys,omitempty"`
@@ -164,6 +167,7 @@ func (s *Server) UpdateGroup(c *gin.Context) {
 		ParamOverrides:      req.ParamOverrides,
 		ModelRedirectRules:  req.ModelRedirectRules,
 		ModelRedirectStrict: req.ModelRedirectStrict,
+		AggregateModelRules: req.AggregateModelRules,
 		Config:              req.Config,
 		ProxyKeys:           req.ProxyKeys,
 	}
@@ -210,6 +214,7 @@ type GroupResponse struct {
 	ParamOverrides      datatypes.JSONMap   `json:"param_overrides"`
 	ModelRedirectRules  datatypes.JSONMap   `json:"model_redirect_rules"`
 	ModelRedirectStrict bool                `json:"model_redirect_strict"`
+	AggregateModelRules datatypes.JSONMap   `json:"aggregate_model_rules"`
 	Config              datatypes.JSONMap   `json:"config"`
 	HeaderRules         []models.HeaderRule `json:"header_rules"`
 	ProxyKeys           string              `json:"proxy_keys"`
@@ -257,6 +262,7 @@ func (s *Server) newGroupResponse(group *models.Group) *GroupResponse {
 		ParamOverrides:      group.ParamOverrides,
 		ModelRedirectRules:  group.ModelRedirectRules,
 		ModelRedirectStrict: group.ModelRedirectStrict,
+		AggregateModelRules: group.AggregateModelRules,
 		Config:              group.Config,
 		HeaderRules:         headerRules,
 		ProxyKeys:           group.ProxyKeys,

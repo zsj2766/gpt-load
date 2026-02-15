@@ -77,6 +77,8 @@ var MessagesZhCN = map[string]string{
 	"validation.standard_group_requires_upstreams_testmodel": "转换为标准分组需要提供上游服务器和测试模型",
 	"validation.aggregate_no_model_redirect": "聚合分组不支持配置模型重定向规则",
 	"validation.invalid_retry_strategy": "无效的重试策略，必须是 'auto'、'fixed' 或 'switch'",
+	"validation.standard_no_aggregate_model_rules": "标准分组不支持配置聚合模型映射规则",
+	"validation.invalid_aggregate_model_rules": "聚合模型映射规则配置错误: {{.error}}",
 	"validation.force_path_switch_openai_only": "强制转换仅支持 OpenAI 标准分组",
 	"validation.invalid_target_path":         "无效的目标路径，必须是以 / 开头的路径且不能包含完整 URL",
 	"validation.no_active_keys":              "该分组没有可用的密钥",

@@ -247,6 +247,13 @@ function handleAggregateGroupEdited(newGroup: Group) {
   }
 }
 
+function isAggregateModelRulesConfigured(group: Group | null): boolean {
+  if (!group?.aggregate_model_rules) {
+    return false;
+  }
+  return Object.keys(group.aggregate_model_rules).length > 0;
+}
+
 function handleGroupCopied(newGroup: Group) {
   showCopyModal.value = false;
   if (newGroup) {
@@ -712,6 +719,25 @@ function getRetryStrategyType(strategy: string | undefined): "success" | "info" 
                       </n-tag>
                     </span>
                     <n-input class="upstream-url" :value="upstream.url" readonly size="small" />
+                  </n-form-item>
+                </n-form>
+              </div>
+
+              <!-- 聚合分组显示模型映射配置 -->
+              <div class="detail-section" v-if="isAggregateGroup">
+                <h4 class="section-title">{{ t("aggregateMappings.title") }}</h4>
+                <n-form label-placement="left" label-width="140px">
+                  <n-form-item :label="`${t('aggregateMappings.totalMappings')}：`">
+                    {{ group?.aggregate_model_rules ? Object.keys(group.aggregate_model_rules).length : 0 }}
+                  </n-form-item>
+                  <n-form-item
+                    v-if="isAggregateModelRulesConfigured(group)"
+                    :label="`${t('aggregateMappings.mappings')}：`"
+                    :span="2"
+                  >
+                    <pre class="config-json">{{
+                      JSON.stringify(group?.aggregate_model_rules || {}, null, 2)
+                    }}</pre>
                   </n-form-item>
                 </n-form>
               </div>

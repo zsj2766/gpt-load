@@ -153,7 +153,6 @@ async function handleSubmit() {
 
     loading.value = true;
 
-    // 构建提交数据
     const submitData = {
       name: formData.name,
       display_name: formData.display_name,
@@ -167,14 +166,12 @@ async function handleSubmit() {
 
     let result: Group;
     if (props.group) {
-      // 编辑模式
       if (!props.group?.id) {
         message.error(t("keys.invalidGroup"));
         return;
       }
       result = await keysApi.updateGroup(props.group.id, submitData);
     } else {
-      // 新建模式
       result = await keysApi.createGroup(submitData);
     }
 
@@ -211,7 +208,6 @@ async function handleSubmit() {
         label-placement="left"
         label-width="120px"
       >
-        <!-- 基础信息 -->
         <div class="form-section">
           <h4 class="section-title">{{ t("keys.basicInfo") }}</h4>
 

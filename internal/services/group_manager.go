@@ -107,6 +107,28 @@ func (gm *GroupManager) Initialize() error {
 				}
 			}
 
+			// Parse aggregate model mapping rules with error handling
+			g.AggregateModelMap = make(map[string]string)
+			if len(group.AggregateModelRules) > 0 {
+				hasInvalidRules := false
+				for key, value := range group.AggregateModelRules {
+					if valueStr, ok := value.(string); ok {
+						g.AggregateModelMap[key] = valueStr
+					} else {
+						logrus.WithFields(logrus.Fields{
+							"group_name": g.Name,
+							"rule_key":   key,
+							"value_type": fmt.Sprintf("%T", value),
+							"value":      value,
+						}).Error("Invalid aggregate model rule value type, skipping this rule")
+						hasInvalidRules = true
+					}
+				}
+				if hasInvalidRules {
+					logrus.WithField("group_name", g.Name).Warn("Group has invalid aggregate model rules, some rules were skipped. Please check the configuration.")
+				}
+			}
+
 			// Load sub-groups for aggregate groups
 			if g.GroupType == "aggregate" {
 				if subGroups, ok := subGroupsByAggregateID[g.ID]; ok {
@@ -122,12 +144,13 @@ func (gm *GroupManager) Initialize() error {
 
 			groupMap[g.Name] = &g
 			logrus.WithFields(logrus.Fields{
-				"group_name":               g.Name,
-				"effective_config":         g.EffectiveConfig,
-				"header_rules_count":       len(g.HeaderRuleList),
+				"group_name":                 g.Name,
+				"effective_config":           g.EffectiveConfig,
+				"header_rules_count":         len(g.HeaderRuleList),
 				"model_redirect_rules_count": len(g.ModelRedirectMap),
-				"model_redirect_strict":    g.ModelRedirectStrict,
-				"sub_group_count":          len(g.SubGroups),
+				"aggregate_model_rules_count": len(g.AggregateModelMap),
+				"model_redirect_strict":      g.ModelRedirectStrict,
+				"sub_group_count":            len(g.SubGroups),
 			}).Debug("Loaded group with effective config")
 		}
 

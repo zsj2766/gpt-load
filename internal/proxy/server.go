@@ -63,38 +63,12 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 	startTime := time.Now()
 	groupName := c.Param("group_name")
 
-	// Save original request path before any modifications
+	// Preserve original request path before any route rewriting
 	originalRequestPath := c.Param("path")
 
 	originalGroup, err := ps.groupManager.GetGroupByName(groupName)
 	if err != nil {
 		response.Error(c, app_errors.ParseDBError(err))
-		return
-	}
-
-	// Select sub-group if this is an aggregate group
-	subGroupName, err := ps.subGroupManager.SelectSubGroup(originalGroup)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"aggregate_group": originalGroup.Name,
-			"error":           err,
-		}).Error("Failed to select sub-group from aggregate")
-		response.Error(c, app_errors.NewAPIError(app_errors.ErrNoKeysAvailable, "No available sub-groups"))
-		return
-	}
-
-	group := originalGroup
-	if subGroupName != "" {
-		group, err = ps.groupManager.GetGroupByName(subGroupName)
-		if err != nil {
-			response.Error(c, app_errors.ParseDBError(err))
-			return
-		}
-	}
-
-	channelHandler, err := ps.channelFactory.GetChannel(group)
-	if err != nil {
-		response.Error(c, app_errors.NewAPIError(app_errors.ErrInternalServer, fmt.Sprintf("Failed to get channel for group '%s': %v", groupName, err)))
 		return
 	}
 
@@ -105,6 +79,18 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 		return
 	}
 	c.Request.Body.Close()
+
+	group, err := ps.getGroupForInitialDispatch(c, originalGroup, bodyBytes)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	channelHandler, err := ps.channelFactory.GetChannel(group)
+	if err != nil {
+		response.Error(c, app_errors.NewAPIError(app_errors.ErrInternalServer, fmt.Sprintf("Failed to get channel for group '%s': %v", groupName, err)))
+		return
+	}
 
 	finalBodyBytes, err := ps.applyParamOverrides(bodyBytes, group)
 	if err != nil {
@@ -117,9 +103,68 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 	ps.executeRequestWithRetry(c, channelHandler, originalGroup, group, finalBodyBytes, isStream, startTime, 0, nil, originalRequestPath)
 }
 
-// getEffectivePath returns the path to use for upstream request based on group's force path switch config.
-// originalPath is the caller's original request path (e.g., /v1/responses).
-// If force_path_switch is enabled, returns the target path; otherwise returns the original path.
+// getGroupForInitialDispatch returns the concrete standard group for the first attempt.
+// For aggregate groups, it tries aggregate model mapping first, then falls back to weighted sub-group selection.
+func (ps *ProxyServer) getGroupForInitialDispatch(c *gin.Context, originalGroup *models.Group, bodyBytes []byte) (*models.Group, *app_errors.APIError) {
+	if originalGroup.GroupType != "aggregate" {
+		return originalGroup, nil
+	}
+
+	mappedGroupName := ps.matchAggregateModelGroup(c, originalGroup, bodyBytes)
+	if mappedGroupName != "" {
+		mappedGroup, mapErr := ps.groupManager.GetGroupByName(mappedGroupName)
+		if mapErr != nil {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": originalGroup.Name,
+				"mapped_group":    mappedGroupName,
+				"error":           mapErr,
+			}).Warn("Aggregate model mapping target not found, fallback to subgroup selection")
+		} else if mappedGroup.GroupType != "standard" {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": originalGroup.Name,
+				"mapped_group":    mappedGroupName,
+				"group_type":      mappedGroup.GroupType,
+			}).Warn("Aggregate model mapping target is not a standard group, fallback to subgroup selection")
+		} else if mappedGroup.ChannelType != originalGroup.ChannelType {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": originalGroup.Name,
+				"mapped_group":    mappedGroupName,
+				"aggregate_type":  originalGroup.ChannelType,
+				"mapped_type":     mappedGroup.ChannelType,
+			}).Warn("Aggregate model mapping target channel mismatch, fallback to subgroup selection")
+		} else if ps.subGroupManager.GetActiveKeyCount(mappedGroup.ID) <= 0 {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": originalGroup.Name,
+				"mapped_group":    mappedGroupName,
+			}).Warn("Aggregate model mapping target has no active keys, fallback to subgroup selection")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": originalGroup.Name,
+				"mapped_group":    mappedGroupName,
+			}).Debug("Aggregate model mapping matched")
+			return mappedGroup, nil
+		}
+	}
+
+	subGroupName, err := ps.subGroupManager.SelectSubGroup(originalGroup)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": originalGroup.Name,
+			"error":           err,
+		}).Error("Failed to select sub-group from aggregate")
+		return nil, app_errors.NewAPIError(app_errors.ErrNoKeysAvailable, "No available sub-groups")
+	}
+	if subGroupName == "" {
+		return originalGroup, nil
+	}
+
+	selectedGroup, err := ps.groupManager.GetGroupByName(subGroupName)
+	if err != nil {
+		return nil, app_errors.ParseDBError(err)
+	}
+	return selectedGroup, nil
+}
+
 func (ps *ProxyServer) getEffectivePath(originalPath string, group *models.Group) (string, error) {
 	if group.ChannelType != "openai" {
 		return originalPath, nil
@@ -135,6 +180,58 @@ func (ps *ProxyServer) getEffectivePath(originalPath string, group *models.Group
 		return "", fmt.Errorf("invalid target_path: %s", targetPath)
 	}
 	return targetPath, nil
+}
+
+func (ps *ProxyServer) matchAggregateModelGroup(c *gin.Context, originalGroup *models.Group, bodyBytes []byte) string {
+	if originalGroup == nil || originalGroup.GroupType != "aggregate" {
+		return ""
+	}
+	if len(originalGroup.AggregateModelMap) == 0 {
+		return ""
+	}
+
+	requestedModel := strings.TrimSpace(extractModelFromRequest(c, bodyBytes, originalGroup.ChannelType))
+	if requestedModel == "" {
+		return ""
+	}
+
+	if targetGroup, ok := originalGroup.AggregateModelMap[requestedModel]; ok {
+		return strings.TrimSpace(targetGroup)
+	}
+
+	return ""
+}
+
+func extractModelFromRequest(c *gin.Context, bodyBytes []byte, channelType string) string {
+	channelType = strings.TrimSpace(channelType)
+	if channelType == "" {
+		return ""
+	}
+
+	switch channelType {
+	case "gemini":
+		path := c.Request.URL.Path
+		parts := strings.Split(path, "/")
+		for i, part := range parts {
+			if part == "models" && i+1 < len(parts) {
+				modelPart := parts[i+1]
+				return strings.Split(modelPart, ":")[0]
+			}
+		}
+	}
+
+	if len(bodyBytes) == 0 {
+		return ""
+	}
+
+	var payload struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return ""
+	}
+
+	return payload.Model
 }
 
 // executeRequestWithRetry is the core recursive function for handling requests and retries.

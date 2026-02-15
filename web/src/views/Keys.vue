@@ -172,7 +172,7 @@ function handleNavigateToGroup(groupId: number) {
             :sub-groups="subGroups"
             :groups="groups"
             :loading="loadingSubGroups"
-            @refresh="loadSubGroups"
+            @refresh="() => refreshGroupsAndSelect(selectedGroup?.id)"
             @group-select="handleSubGroupSelect"
           />
         </div>

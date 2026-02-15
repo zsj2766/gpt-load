@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -107,6 +108,7 @@ type GroupCreateParams struct {
 	ParamOverrides      map[string]any
 	ModelRedirectRules  map[string]string
 	ModelRedirectStrict bool
+	AggregateModelRules map[string]string
 	Config              map[string]any
 	HeaderRules         []models.HeaderRule
 	ProxyKeys           string
@@ -132,6 +134,7 @@ type GroupUpdateParams struct {
 	ParamOverrides      map[string]any
 	ModelRedirectRules  map[string]string
 	ModelRedirectStrict *bool
+	AggregateModelRules map[string]string
 	Config              map[string]any
 	HeaderRules         *[]models.HeaderRule
 	ProxyKeys           *string
@@ -233,6 +236,15 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.aggregate_no_model_redirect", nil)
 	}
 
+	// Validate and normalize model redirect rules
+	if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
+		return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
+	}
+
+	if err := validateAggregateModelRules(ctx, s.db, groupType, channelType, params.AggregateModelRules, params.SubGroups); err != nil {
+		return nil, err
+	}
+
 	// Validate and set retry strategy (only for aggregate groups)
 	retryStrategy := strings.TrimSpace(params.RetryStrategy)
 	if groupType == "aggregate" {
@@ -245,37 +257,6 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 	} else {
 		// For non-aggregate groups, retry strategy is not applicable
 		retryStrategy = ""
-	}
-
-	forcePathSwitch := false
-	targetPath := ""
-	if params.Config != nil {
-		if forceRaw, ok := params.Config["force_path_switch"]; ok {
-			if forceVal, ok := forceRaw.(bool); ok {
-				forcePathSwitch = forceVal
-			}
-		}
-		if targetRaw, ok := params.Config["target_path"]; ok {
-			if targetVal, ok := targetRaw.(string); ok {
-				targetPath = strings.TrimSpace(targetVal)
-			}
-		}
-	}
-	if forcePathSwitch {
-		if groupType != "standard" || channelType != "openai" {
-			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
-		}
-		if targetPath == "" {
-			targetPath = utils.OpenAIChatCompletionsPath
-		}
-		if !utils.IsValidForceTargetPath(targetPath) {
-			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
-		}
-	}
-
-	// Validate model redirect rules format
-	if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
-		return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
 	}
 
 	group := models.Group{
@@ -292,14 +273,15 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		ParamOverrides:      params.ParamOverrides,
 		ModelRedirectRules:  convertToJSONMap(params.ModelRedirectRules),
 		ModelRedirectStrict: params.ModelRedirectStrict,
+		AggregateModelRules: convertToJSONMap(params.AggregateModelRules),
 		Config:              cleanedConfig,
 		HeaderRules:         headerRulesJSON,
 		ProxyKeys:           strings.TrimSpace(params.ProxyKeys),
 	}
 	applyForcePathConfig(&group)
 
-	forcePathSwitch = group.ForcePathSwitch
-	targetPath = group.TargetPath
+	forcePathSwitch := group.ForcePathSwitch
+	targetPath := strings.TrimSpace(group.TargetPath)
 	if params.Config != nil {
 		if forceRaw, ok := params.Config["force_path_switch"]; ok {
 			if forceVal, ok := forceRaw.(bool); ok {
@@ -501,6 +483,12 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 		}
 		group.ForcePathSwitch = forcePathSwitch
 		group.TargetPath = targetPath
+
+		cleanedConfig, err := s.validateAndCleanConfig(params.Config)
+		if err != nil {
+			return nil, err
+		}
+		group.Config = cleanedConfig
 	}
 
 	// Validate model redirect rules for aggregate groups
@@ -508,12 +496,24 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.aggregate_no_model_redirect", nil)
 	}
 
-	// Validate model redirect rules format
+	// Validate and update model redirect rules
 	if params.ModelRedirectRules != nil {
 		if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
 		}
 		group.ModelRedirectRules = convertToJSONMap(params.ModelRedirectRules)
+	}
+
+	// Aggregate model rules: only aggregate groups support this
+	if params.AggregateModelRules != nil {
+		subGroups, err := loadAggregateSubGroups(ctx, s.db, group.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateAggregateModelRules(ctx, s.db, group.GroupType, group.ChannelType, params.AggregateModelRules, subGroups); err != nil {
+			return nil, err
+		}
+		group.AggregateModelRules = convertToJSONMap(params.AggregateModelRules)
 	}
 
 	if params.ModelRedirectStrict != nil {
@@ -526,14 +526,6 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_test_path", nil)
 		}
 		group.ValidationEndpoint = validationEndpoint
-	}
-
-	if params.Config != nil {
-		cleanedConfig, err := s.validateAndCleanConfig(params.Config)
-		if err != nil {
-			return nil, err
-		}
-		group.Config = cleanedConfig
 	}
 
 	if params.ProxyKeys != nil {
@@ -1322,4 +1314,104 @@ func validateModelRedirectRules(rules map[string]string) error {
 	}
 
 	return nil
+}
+
+func validateAggregateModelRules(
+	ctx context.Context,
+	db *gorm.DB,
+	groupType string,
+	channelType string,
+	rules map[string]string,
+	subGroups []SubGroupInput,
+) error {
+	if groupType != "aggregate" {
+		if len(rules) > 0 {
+			return NewI18nError(app_errors.ErrValidation, "validation.standard_no_aggregate_model_rules", nil)
+		}
+		return nil
+	}
+
+	if err := validateModelRedirectRules(rules); err != nil {
+		return NewI18nError(app_errors.ErrValidation, "validation.invalid_aggregate_model_rules", map[string]any{"error": err.Error()})
+	}
+	if len(rules) == 0 {
+		return nil
+	}
+
+	targetNames := make([]string, 0, len(rules))
+	targetSet := make(map[string]struct{}, len(rules))
+	for _, target := range rules {
+		targetName := strings.TrimSpace(target)
+		if targetName == "" {
+			continue
+		}
+		if _, exists := targetSet[targetName]; exists {
+			continue
+		}
+		targetSet[targetName] = struct{}{}
+		targetNames = append(targetNames, targetName)
+	}
+
+	if len(targetNames) == 0 {
+		return nil
+	}
+
+	var targetGroups []models.Group
+	if err := db.WithContext(ctx).Where("name IN ?", targetNames).Find(&targetGroups).Error; err != nil {
+		return app_errors.ParseDBError(err)
+	}
+
+	targetByName := make(map[string]models.Group, len(targetGroups))
+	for _, tg := range targetGroups {
+		targetByName[tg.Name] = tg
+	}
+
+	allowedSubGroupIDs := make(map[uint]struct{}, len(subGroups))
+	for _, sg := range subGroups {
+		if sg.GroupID == 0 {
+			continue
+		}
+		allowedSubGroupIDs[sg.GroupID] = struct{}{}
+	}
+
+	sort.Strings(targetNames)
+	for _, targetName := range targetNames {
+		target, exists := targetByName[targetName]
+		if !exists {
+			return NewI18nError(app_errors.ErrValidation, "validation.invalid_aggregate_model_rules", map[string]any{"error": fmt.Sprintf("target group '%s' not found", targetName)})
+		}
+		if target.GroupType != "standard" {
+			return NewI18nError(app_errors.ErrValidation, "validation.invalid_aggregate_model_rules", map[string]any{"error": fmt.Sprintf("target group '%s' must be a standard group", targetName)})
+		}
+		if channelType != "" && target.ChannelType != channelType {
+			return NewI18nError(app_errors.ErrValidation, "validation.invalid_aggregate_model_rules", map[string]any{"error": fmt.Sprintf("target group '%s' channel type mismatch", targetName)})
+		}
+		if len(allowedSubGroupIDs) > 0 {
+			if _, ok := allowedSubGroupIDs[target.ID]; !ok {
+				return NewI18nError(app_errors.ErrValidation, "validation.invalid_aggregate_model_rules", map[string]any{"error": fmt.Sprintf("target group '%s' is not in sub_groups", targetName)})
+			}
+		}
+	}
+
+	return nil
+}
+
+func loadAggregateSubGroups(ctx context.Context, db *gorm.DB, groupID uint) ([]SubGroupInput, error) {
+	if groupID == 0 {
+		return nil, nil
+	}
+
+	var relations []models.GroupSubGroup
+	if err := db.WithContext(ctx).Where("group_id = ? AND weight > 0", groupID).Find(&relations).Error; err != nil {
+		return nil, app_errors.ParseDBError(err)
+	}
+
+	result := make([]SubGroupInput, 0, len(relations))
+	for _, relation := range relations {
+		result = append(result, SubGroupInput{
+			GroupID: relation.SubGroupID,
+			Weight:  relation.Weight,
+		})
+	}
+	return result, nil
 }

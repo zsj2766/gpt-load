@@ -6,6 +6,7 @@ import {
   Add,
   CreateOutline,
   EyeOutline,
+  GitBranchOutline,
   InformationCircleOutline,
   Search,
   Trash,
@@ -24,6 +25,7 @@ import {
 } from "naive-ui";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import AddAggregateMappingModal from "./AddAggregateMappingModal.vue";
 import AddSubGroupModal from "./AddSubGroupModal.vue";
 import EditSubGroupWeightModal from "./EditSubGroupWeightModal.vue";
 
@@ -66,6 +68,7 @@ const emit = defineEmits<Emits>();
 const dialog = useDialog();
 
 const addModalShow = ref(false);
+const addMappingModalShow = ref(false);
 const editModalShow = ref(false);
 const editingSubGroup = ref<SubGroupInfo | null>(null);
 
@@ -180,11 +183,17 @@ function formatNumber(num: number): string {
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <n-button type="info" size="small" @click="addModalShow = true">
+        <n-button type="primary" size="small" @click="addModalShow = true">
           <template #icon>
             <n-icon :component="Add" />
           </template>
           {{ t("subGroups.addSubGroup") }}
+        </n-button>
+        <n-button type="primary" size="small" @click="addMappingModalShow = true">
+          <template #icon>
+            <n-icon :component="GitBranchOutline" />
+          </template>
+          {{ t("aggregateMappings.addMapping") }}
         </n-button>
       </div>
       <div class="toolbar-right">
@@ -401,6 +410,15 @@ function formatNumber(num: number): string {
       v-model:show="addModalShow"
       :aggregate-group="selectedGroup"
       :existing-sub-groups="subGroups || []"
+      :groups="groups || []"
+      @success="handleSuccess"
+    />
+
+    <!-- 模型映射弹窗 -->
+    <add-aggregate-mapping-modal
+      v-if="selectedGroup"
+      v-model:show="addMappingModalShow"
+      :aggregate-group="selectedGroup"
       :groups="groups || []"
       @success="handleSuccess"
     />

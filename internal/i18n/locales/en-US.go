@@ -77,6 +77,8 @@ var MessagesEnUS = map[string]string{
 	"validation.standard_group_requires_upstreams_testmodel": "Converting to standard group requires providing upstreams and test model",
 	"validation.aggregate_no_model_redirect": "Aggregate groups do not support model redirect rules",
 	"validation.invalid_retry_strategy": "Invalid retry strategy. Must be 'auto', 'fixed', or 'switch'",
+	"validation.standard_no_aggregate_model_rules": "Standard groups do not support aggregate model mapping rules",
+	"validation.invalid_aggregate_model_rules": "Invalid aggregate model mapping rules: {{.error}}",
 	"validation.force_path_switch_openai_only": "Force path switch is only supported for OpenAI standard groups",
 	"validation.invalid_target_path":         "Invalid target path, it must start with / and cannot contain a full URL",
 	"validation.no_active_keys":              "No active keys available for this group",

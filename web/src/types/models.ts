@@ -81,6 +81,7 @@ export interface Group {
   param_overrides: Record<string, unknown>;
   model_redirect_rules: Record<string, string>;
   model_redirect_strict: boolean;
+  aggregate_model_rules: Record<string, string>;
   header_rules?: HeaderRule[];
   proxy_keys: string;
   group_type?: GroupType;

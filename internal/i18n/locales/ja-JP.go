@@ -77,6 +77,8 @@ var MessagesJaJP = map[string]string{
 	"validation.standard_group_requires_upstreams_testmodel": "標準グループへの変換にはアップストリームサーバーとテストモデルの提供が必要です",
 	"validation.aggregate_no_model_redirect": "集約グループはモデルリダイレクトルールをサポートしていません",
 	"validation.invalid_retry_strategy": "無効なリトライ戦略です。'auto'、'fixed'、または 'switch' である必要があります",
+	"validation.standard_no_aggregate_model_rules": "標準グループは集約モデルマッピングルールをサポートしていません",
+	"validation.invalid_aggregate_model_rules": "無効な集約モデルマッピングルール: {{.error}}",
 	"validation.force_path_switch_openai_only": "強制パス変換は OpenAI の標準グループのみ対応します",
 	"validation.invalid_target_path":         "無効なターゲットパスです。/ で始まり、完全なURLを含まない必要があります",
 	"validation.no_active_keys":              "このグループで利用可能なキーがありません",

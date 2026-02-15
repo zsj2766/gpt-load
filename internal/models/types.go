@@ -110,6 +110,7 @@ type Group struct {
 	HeaderRules         datatypes.JSON       `gorm:"type:json" json:"header_rules"`
 	ModelRedirectRules  datatypes.JSONMap    `gorm:"type:json" json:"model_redirect_rules"`
 	ModelRedirectStrict bool                 `gorm:"default:false" json:"model_redirect_strict"`
+	AggregateModelRules datatypes.JSONMap    `gorm:"type:json" json:"aggregate_model_rules"`
 	APIKeys             []APIKey             `gorm:"foreignKey:GroupID" json:"api_keys"`
 	SubGroups           []GroupSubGroup      `gorm:"-" json:"sub_groups,omitempty"`
 	LastValidatedAt     *time.Time           `json:"last_validated_at"`
@@ -117,9 +118,10 @@ type Group struct {
 	UpdatedAt           time.Time            `json:"updated_at"`
 
 	// For cache
-	ProxyKeysMap     map[string]struct{} `gorm:"-" json:"-"`
-	HeaderRuleList   []HeaderRule        `gorm:"-" json:"-"`
-	ModelRedirectMap map[string]string   `gorm:"-" json:"-"`
+	ProxyKeysMap      map[string]struct{} `gorm:"-" json:"-"`
+	HeaderRuleList    []HeaderRule        `gorm:"-" json:"-"`
+	ModelRedirectMap  map[string]string   `gorm:"-" json:"-"`
+	AggregateModelMap map[string]string   `gorm:"-" json:"-"`
 }
 
 // APIKey 对应 api_keys 表
