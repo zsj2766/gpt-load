@@ -80,9 +80,9 @@ func (ps *ProxyServer) HandleProxy(c *gin.Context) {
 	}
 	c.Request.Body.Close()
 
-	group, err := ps.getGroupForInitialDispatch(c, originalGroup, bodyBytes)
-	if err != nil {
-		response.Error(c, err)
+	group, dispatchErr := ps.getGroupForInitialDispatch(c, originalGroup, bodyBytes)
+	if dispatchErr != nil {
+		response.Error(c, dispatchErr)
 		return
 	}
 
