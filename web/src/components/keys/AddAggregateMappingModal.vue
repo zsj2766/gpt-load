@@ -52,7 +52,8 @@ const existingSubGroups = computed<SubGroupInfo[]>(() => {
 });
 
 const targetGroupOptions = computed(() => {
-  if (!props.aggregateGroup) {
+  const aggregateGroup = props.aggregateGroup;
+  if (!aggregateGroup) {
     return [];
   }
   const existingIds = new Set(
@@ -64,7 +65,7 @@ const targetGroupOptions = computed(() => {
       if (group.group_type === "aggregate") {
         return false;
       }
-      if (group.channel_type !== props.aggregateGroup.channel_type) {
+      if (group.channel_type !== aggregateGroup.channel_type) {
         return false;
       }
       if (!group.id || !group.name) {
@@ -197,7 +198,7 @@ async function handleSubmit() {
           <h4 class="section-title">
             {{ t("aggregateMappings.configTitle") }}
             <span class="section-subtitle">
-              ({{ t("keys.channelType") }}: {{ aggregateGroup.channel_type.toUpperCase() }})
+              ({{ t("keys.channelType") }}: {{ aggregateGroup?.channel_type?.toUpperCase() || "-" }})
             </span>
           </h4>
 
