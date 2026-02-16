@@ -982,7 +982,7 @@ func (s *GroupService) GetGroupModels(ctx context.Context, groupID uint, upstrea
 		}
 
 		switch group.ChannelType {
-		case "openai":
+		case "openai", "openai-response":
 			req.Header.Set("Authorization", "Bearer "+apiKey.KeyValue)
 		case "anthropic":
 			req.Header.Set("x-api-key", apiKey.KeyValue)
