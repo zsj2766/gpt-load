@@ -461,6 +461,13 @@ export default {
     atLeastOneMapping: "少なくとも1件のモデルマッピングを設定してください",
     selectTargetGroup: "対象グループを選択してください",
     duplicateModel: "モデル名は重複できません",
+    subGroupsTitle: "サブグループ自動追加",
+    regexPlaceholder: "任意：正規表現（空欄は全件一致）",
+    autoAdd: "自動追加",
+    autoAddInvalidRegex: "サブグループ「{name}」の正規表現が無効です",
+    autoAddNoMatch: "サブグループ「{name}」で一致するモデルがありません",
+    autoAddSummary: "サブグループ「{name}」: 一致 {matched} 件、追加 {added} 件、スキップ {skipped} 件",
+    autoAddFetchFailed: "サブグループ「{name}」のモデル取得に失敗しました",
   },
   subGroups: {
     addSubGroup: "サブグループを追加",

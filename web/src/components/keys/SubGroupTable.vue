@@ -419,7 +419,7 @@ function formatNumber(num: number): string {
       v-if="selectedGroup"
       v-model:show="addMappingModalShow"
       :aggregate-group="selectedGroup"
-      :groups="groups || []"
+      :sub-groups="subGroups || []"
       @success="handleSuccess"
     />
 

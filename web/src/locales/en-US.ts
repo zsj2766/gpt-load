@@ -461,6 +461,13 @@ export default {
     atLeastOneMapping: "Please configure at least one model mapping",
     selectTargetGroup: "Please select target group",
     duplicateModel: "Model name cannot be duplicated",
+    subGroupsTitle: "Sub-groups",
+    regexPlaceholder: "Optional regex (empty = match all)",
+    autoAdd: "Auto Add",
+    autoAddInvalidRegex: "Invalid regex for sub-group \"{name}\"",
+    autoAddNoMatch: "No models matched for sub-group \"{name}\"",
+    autoAddSummary: "Sub-group \"{name}\": matched {matched}, added {added}, skipped {skipped}",
+    autoAddFetchFailed: "Failed to fetch models for sub-group \"{name}\"",
   },
   subGroups: {
     addSubGroup: "Add Sub Group",

@@ -966,7 +966,7 @@ func (s *GroupService) GetGroupModels(ctx context.Context, groupID uint, upstrea
 
 	modelPaths := []string{"/v1/models"}
 	switch group.ChannelType {
-	case "openai", "anthropic":
+	case "openai", "openai-response", "anthropic":
 		modelPaths = []string{"/v1/models"}
 	case "gemini":
 		modelPaths = []string{"/v1beta/models", "/v1/models"}

@@ -445,6 +445,13 @@ export default {
     atLeastOneMapping: "请至少配置一条模型映射",
     selectTargetGroup: "请选择目标分组",
     duplicateModel: "模型名称不能重复",
+    subGroupsTitle: "子分组自动添加",
+    regexPlaceholder: "可选：输入正则（留空匹配全部）",
+    autoAdd: "自动添加",
+    autoAddInvalidRegex: "子分组「{name}」的正则表达式无效",
+    autoAddNoMatch: "子分组「{name}」未命中任何模型",
+    autoAddSummary: "子分组「{name}」命中 {matched} 条，新增 {added} 条，跳过 {skipped} 条",
+    autoAddFetchFailed: "拉取子分组「{name}」模型失败",
   },
   subGroups: {
     addSubGroup: "添加子分组",
