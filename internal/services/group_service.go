@@ -414,9 +414,6 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 			supported := strings.Join(s.channelRegistry, ", ")
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_channel_type", map[string]any{"types": supported})
 		}
-		if group.ChannelType != cleanedChannelType && group.ForcePathSwitch {
-			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
-		}
 		group.ChannelType = cleanedChannelType
 	}
 

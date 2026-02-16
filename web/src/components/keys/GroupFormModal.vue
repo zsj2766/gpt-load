@@ -585,6 +585,9 @@ async function handleSubmit() {
       const targetPath = formData.target_path.trim();
       config.force_path_switch = formData.force_path_switch;
       config.target_path = formData.force_path_switch ? targetPath : "";
+    } else {
+      config.force_path_switch = false;
+      config.target_path = "";
     }
 
     // 构建提交数据
