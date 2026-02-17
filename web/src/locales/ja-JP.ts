@@ -280,6 +280,9 @@ export default {
     upstreamAddresses: "アップストリームアドレス",
     upstream: "アップストリーム",
     weight: "ウェイト",
+    models: "モデル",
+    modelListTitle: "モデル一覧",
+    modelListEmpty: "モデルが返されませんでした",
     advancedConfig: "詳細設定",
     aggregateReferences: "集約参照",
     groupInfo: "グループ情報",
@@ -354,6 +357,15 @@ export default {
     addHeader: "ヘッダー追加",
     paramOverridesTooltip:
       "JSON形式を使用して、上書きするAPIリクエストパラメータを定義します。これらのパラメータは、リクエスト送信時に元のパラメータにマージされます。",
+    forcePathSwitch: "リクエストパスを強制変換",
+    forcePathSwitchTooltip:
+      "有効にすると、呼び出し元の /v1/chat/completions または /v1/responses を無視し、指定パスへ強制変換します。OpenAI の標準グループのみ対象です",
+    forcePathSwitchEnabled: "有効：指定パスへ強制変換",
+    forcePathSwitchDisabled: "無効：呼び出し元のパスを透過",
+    forcePathSwitchTarget: "強制変換ターゲットパス",
+    forcePathSwitchTargetTooltip:
+      "強制変換時に使用する上流パスを入力します。デフォルトは /v1/chat/completions で、有効なパスなら任意に設定できます",
+    forcePathSwitchTargetPlaceholder: "例: /v1/chat/completions",
     modelRedirectPolicy: "未設定モデルポリシー",
     modelRedirectPolicyTooltip:
       "リダイレクトルールで設定されていないモデルのリクエストをどう処理するか選択",
@@ -421,6 +433,15 @@ export default {
     notes: "備考",
     editKeyNotes: "キー備考を編集",
     enterNotes: "備考を入力してください...",
+    retryStrategy: "リトライ戦略",
+    selectRetryStrategy: "リトライ戦略を選択",
+    retryStrategyAuto: "スマート切替（推奨）",
+    retryStrategyFixed: "固定グループ",
+    retryStrategySwitch: "強制切替",
+    retryStrategyAutoTooltip:
+      "マルチキーサブグループは現在のグループでリトライ、シングルキーサブグループは他のグループに切り替え",
+    retryStrategyFixedTooltip: "常に現在のサブグループ内でキーをローテーションしてリトライ",
+    retryStrategySwitchTooltip: "リトライ時は常に他のサブグループに切り替え",
     uploadFile: "ファイルをアップロード",
     manualInput: "手動入力",
     clickOrDragFile: "アップロードをクリック",

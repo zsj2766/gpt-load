@@ -38,6 +38,9 @@ type GroupConfig struct {
 	KeyValidationConcurrency     *int    `json:"key_validation_concurrency,omitempty"`
 	KeyValidationTimeoutSeconds  *int    `json:"key_validation_timeout_seconds,omitempty"`
 	EnableRequestBodyLogging     *bool   `json:"enable_request_body_logging,omitempty"`
+	RetryStrategy                *string `json:"retry_strategy,omitempty"`
+	ForcePathSwitch              *bool   `json:"force_path_switch,omitempty"`
+	TargetPath                   *string `json:"target_path,omitempty"`
 }
 
 // HeaderRule defines a single rule for header manipulation.
@@ -77,6 +80,13 @@ type ParentAggregateGroupInfo struct {
 	Weight      int    `json:"weight"`
 }
 
+// Retry strategy constants for aggregate groups
+const (
+	RetryStrategyAuto   = "auto"   // Smart switch: multi-key keeps current group, single-key switches
+	RetryStrategyFixed  = "fixed"  // Always keep current sub-group, rotate keys within
+	RetryStrategySwitch = "switch" // Always switch to another sub-group on retry
+)
+
 // Group 对应 groups 表
 type Group struct {
 	ID                  uint                 `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -87,9 +97,12 @@ type Group struct {
 	ProxyKeys           string               `gorm:"type:text" json:"proxy_keys"`
 	Description         string               `gorm:"type:varchar(512)" json:"description"`
 	GroupType           string               `gorm:"type:varchar(50);default:'standard'" json:"group_type"` // 'standard' or 'aggregate'
+	RetryStrategy       string               `gorm:"type:varchar(20);default:'auto'" json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           datatypes.JSON       `gorm:"type:json;not null" json:"upstreams"`
 	ValidationEndpoint  string               `gorm:"type:varchar(255)" json:"validation_endpoint"`
 	ChannelType         string               `gorm:"type:varchar(50);not null" json:"channel_type"`
+	ForcePathSwitch     bool                 `gorm:"-" json:"force_path_switch"`
+	TargetPath          string               `gorm:"-" json:"target_path"`
 	Sort                int                  `gorm:"default:0" json:"sort"`
 	TestModel           string               `gorm:"type:varchar(255);not null" json:"test_model"`
 	ParamOverrides      datatypes.JSONMap    `gorm:"type:json" json:"param_overrides"`

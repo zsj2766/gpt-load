@@ -34,7 +34,11 @@ fetchSettings();
 async function fetchSettings() {
   try {
     const data = await settingsApi.getSettings();
-    settingList.value = data || [];
+    const filtered = (data || []).map(category => ({
+      ...category,
+      settings: (category.settings || []).filter(setting => setting.key !== "retry_strategy"),
+    }));
+    settingList.value = filtered;
     initForm();
   } catch (_error) {
     message.error(t("settings.loadFailed"));

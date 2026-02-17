@@ -180,7 +180,7 @@ function formatNumber(num: number): string {
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <n-button type="info" size="small" @click="addModalShow = true">
+        <n-button type="primary" size="small" @click="addModalShow = true">
           <template #icon>
             <n-icon :component="Add" />
           </template>

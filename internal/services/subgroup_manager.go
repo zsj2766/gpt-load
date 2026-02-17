@@ -34,6 +34,13 @@ func NewSubGroupManager(store store.Store) *SubGroupManager {
 
 // SelectSubGroup selects an appropriate sub-group for the given aggregate group
 func (m *SubGroupManager) SelectSubGroup(group *models.Group) (string, error) {
+	return m.SelectSubGroupExcluding(group, "")
+}
+
+// SelectSubGroupExcluding selects an appropriate sub-group for the given aggregate group,
+// excluding the specified group name from selection. This is used for retry scenarios
+// where we want to try a different sub-group.
+func (m *SubGroupManager) SelectSubGroupExcluding(group *models.Group, excludeGroupName string) (string, error) {
 	if group.GroupType != "aggregate" {
 		return "", nil
 	}
@@ -43,7 +50,7 @@ func (m *SubGroupManager) SelectSubGroup(group *models.Group) (string, error) {
 		return "", fmt.Errorf("no valid sub-groups available for aggregate group '%s'", group.Name)
 	}
 
-	selectedName := selector.selectNext()
+	selectedName := selector.selectNextExcluding(excludeGroupName)
 	if selectedName == "" {
 		return "", fmt.Errorf("no sub-groups with active keys for aggregate group '%s'", group.Name)
 	}
@@ -51,9 +58,24 @@ func (m *SubGroupManager) SelectSubGroup(group *models.Group) (string, error) {
 	logrus.WithFields(logrus.Fields{
 		"aggregate_group": group.Name,
 		"selected_group":  selectedName,
+		"excluded_group":  excludeGroupName,
 	}).Debug("Selected sub-group from aggregate")
 
 	return selectedName, nil
+}
+
+// GetActiveKeyCount returns the number of active keys for a given group ID
+func (m *SubGroupManager) GetActiveKeyCount(groupID uint) int64 {
+	key := fmt.Sprintf("group:%d:active_keys", groupID)
+	length, err := m.store.LLen(key)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"group_id": groupID,
+			"error":    err,
+		}).Debug("Error getting active key count, returning 0")
+		return 0
+	}
+	return length
 }
 
 // RebuildSelectors rebuild all selectors based on the incoming group
@@ -143,6 +165,12 @@ type selector struct {
 
 // selectNext uses weighted round-robin algorithm to select a sub-group with active keys
 func (s *selector) selectNext() string {
+	return s.selectNextExcluding("")
+}
+
+// selectNextExcluding uses weighted round-robin algorithm to select a sub-group with active keys,
+// excluding the specified group name from selection
+func (s *selector) selectNextExcluding(excludeGroupName string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -150,7 +178,27 @@ func (s *selector) selectNext() string {
 		return ""
 	}
 
+	// Count available sub-groups (excluding the excluded one)
+	availableCount := 0
+	for _, sg := range s.subGroups {
+		if sg.name != excludeGroupName {
+			availableCount++
+		}
+	}
+
+	if availableCount == 0 {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group": s.groupName,
+			"excluded_group":  excludeGroupName,
+		}).Debug("No available sub-groups after exclusion")
+		return ""
+	}
+
 	if len(s.subGroups) == 1 {
+		// If there's only one sub-group and it's excluded, return empty
+		if s.subGroups[0].name == excludeGroupName {
+			return ""
+		}
 		if s.hasActiveKeys(s.subGroups[0].subGroupID) {
 			return s.subGroups[0].name
 		}
@@ -173,6 +221,15 @@ func (s *selector) selectNext() string {
 		}
 		attempted[item.subGroupID] = true
 
+		// Skip the excluded group
+		if item.name == excludeGroupName {
+			logrus.WithFields(logrus.Fields{
+				"aggregate_group": s.groupName,
+				"skipped_group":   item.name,
+			}).Debug("Skipping excluded sub-group during retry")
+			continue
+		}
+
 		if s.hasActiveKeys(item.subGroupID) {
 			logrus.WithFields(logrus.Fields{
 				"aggregate_group": s.groupName,
@@ -192,6 +249,7 @@ func (s *selector) selectNext() string {
 	logrus.WithFields(logrus.Fields{
 		"aggregate_group":  s.groupName,
 		"total_sub_groups": len(s.subGroups),
+		"excluded_group":   excludeGroupName,
 	}).Warn("No sub-groups with active keys available")
 
 	return ""

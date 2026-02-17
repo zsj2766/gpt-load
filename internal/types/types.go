@@ -41,6 +41,11 @@ type SystemSettings struct {
 	KeyValidationConcurrency     int `json:"key_validation_concurrency" default:"10" name:"config.key_validation_concurrency" category:"config.category.key" desc:"config.key_validation_concurrency_desc" validate:"required,min=1"`
 	KeyValidationTimeoutSeconds  int `json:"key_validation_timeout_seconds" default:"20" name:"config.key_validation_timeout" category:"config.category.key" desc:"config.key_validation_timeout_desc" validate:"required,min=1"`
 
+	RetryStrategy string `json:"retry_strategy" default:"auto" name:"config.retry_strategy" category:"config.category.key" desc:"config.retry_strategy_desc"`
+
+	ForcePathSwitch bool   `json:"-" name:"config.force_path_switch" category:"config.category.request" desc:"config.force_path_switch_desc"`
+	TargetPath      string `json:"-" name:"config.target_path" category:"config.category.request" desc:"config.target_path_desc"`
+
 	// For cache
 	ProxyKeysMap map[string]struct{} `json:"-"`
 }

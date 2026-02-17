@@ -70,6 +70,9 @@ func (gm *GroupManager) Initialize() error {
 		for _, group := range groups {
 			g := *group
 			g.EffectiveConfig = gm.settingsManager.GetEffectiveConfig(g.Config)
+			if g.GroupType == "aggregate" && g.RetryStrategy != "" {
+				g.EffectiveConfig.RetryStrategy = g.RetryStrategy
+			}
 			g.ProxyKeysMap = utils.StringToSet(g.ProxyKeys, ",")
 
 			// Parse header rules with error handling
@@ -119,12 +122,12 @@ func (gm *GroupManager) Initialize() error {
 
 			groupMap[g.Name] = &g
 			logrus.WithFields(logrus.Fields{
-				"group_name":               g.Name,
-				"effective_config":         g.EffectiveConfig,
-				"header_rules_count":       len(g.HeaderRuleList),
+				"group_name":                 g.Name,
+				"effective_config":           g.EffectiveConfig,
+				"header_rules_count":         len(g.HeaderRuleList),
 				"model_redirect_rules_count": len(g.ModelRedirectMap),
-				"model_redirect_strict":    g.ModelRedirectStrict,
-				"sub_group_count":          len(g.SubGroups),
+				"model_redirect_strict":      g.ModelRedirectStrict,
+				"sub_group_count":            len(g.SubGroups),
 			}).Debug("Loaded group with effective config")
 		}
 

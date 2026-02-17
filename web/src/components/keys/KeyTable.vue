@@ -500,7 +500,6 @@ async function validateKeys(status: "all" | "active" | "invalid") {
 
   try {
     await keysApi.validateGroupKeys(props.selectedGroup.id, status === "all" ? undefined : status);
-    localStorage.removeItem("last_closed_task");
     appState.taskPollingTrigger++;
   } catch (_error) {
     console.error("Test failed");

@@ -65,6 +65,10 @@ const expandedName = ref<string[]>([]);
 const configOptions = ref<GroupConfigOption[]>([]);
 const showProxyKeys = ref(false);
 const parentAggregateGroups = ref<ParentAggregateGroup[]>([]);
+const excludedConfigKeys = ["force_path_switch", "target_path", "retry_strategy"];
+const filteredConfigEntries = computed(() =>
+  Object.entries(props.group?.config || {}).filter(([key]) => !excludedConfigKeys.includes(key))
+);
 
 const proxyKeysDisplay = computed(() => {
   if (!props.group?.proxy_keys) {
@@ -80,7 +84,8 @@ const hasAdvancedConfig = computed(() => {
   return (
     (props.group?.config && Object.keys(props.group.config).length > 0) ||
     props.group?.param_overrides ||
-    (props.group?.header_rules && props.group.header_rules.length > 0)
+    (props.group?.header_rules && props.group.header_rules.length > 0) ||
+    props.group?.force_path_switch
   );
 });
 
@@ -332,6 +337,34 @@ function resetPage() {
   showCopyModal.value = false;
   expandedName.value = [];
 }
+
+// 获取重试策略显示标签
+function getRetryStrategyLabel(strategy: string | undefined): string {
+  switch (strategy) {
+    case "auto":
+      return t("keys.retryStrategyAuto");
+    case "fixed":
+      return t("keys.retryStrategyFixed");
+    case "switch":
+      return t("keys.retryStrategySwitch");
+    default:
+      return t("keys.retryStrategyAuto");
+  }
+}
+
+// 获取重试策略标签类型
+function getRetryStrategyType(strategy: string | undefined): "success" | "info" | "warning" {
+  switch (strategy) {
+    case "auto":
+      return "success";
+    case "fixed":
+      return "info";
+    case "switch":
+      return "warning";
+    default:
+      return "success";
+  }
+}
 </script>
 
 <template>
@@ -560,6 +593,14 @@ function resetPage() {
                         {{ group?.sort }}
                       </n-form-item>
                     </n-grid-item>
+                    <!-- 聚合分组显示重试策略 -->
+                    <n-grid-item v-if="isAggregateGroup">
+                      <n-form-item :label="`${t('keys.retryStrategy')}：`">
+                        <n-tag :type="getRetryStrategyType(group?.retry_strategy)" size="small">
+                          {{ getRetryStrategyLabel(group?.retry_strategy) }}
+                        </n-tag>
+                      </n-form-item>
+                    </n-grid-item>
                     <!-- 标准分组才显示测试模型和测试路径 -->
                     <n-grid-item v-if="!isAggregateGroup">
                       <n-form-item :label="`${t('keys.testModel')}：`">
@@ -679,7 +720,7 @@ function resetPage() {
               <div class="detail-section" v-if="!isAggregateGroup && hasAdvancedConfig">
                 <h4 class="section-title">{{ t("keys.advancedConfig") }}</h4>
                 <n-form label-placement="left">
-                  <n-form-item v-for="(value, key) in group?.config || {}" :key="key">
+                  <n-form-item v-for="([key, value], index) in filteredConfigEntries" :key="`${key}-${index}`">
                     <template #label>
                       <n-tooltip trigger="hover" :delay="300" placement="top">
                         <template #trigger>
@@ -750,6 +791,15 @@ function resetPage() {
                     <pre class="config-json">{{
                       JSON.stringify(group?.model_redirect_rules || {}, null, 2)
                     }}</pre>
+                  </n-form-item>
+                  <n-form-item
+                    v-if="group?.force_path_switch"
+                    :label="`${t('keys.forcePathSwitch')}：`"
+                    :span="2"
+                  >
+                    <n-tag type="warning" size="small">
+                      {{ group?.target_path || '/v1/chat/completions' }}
+                    </n-tag>
                   </n-form-item>
                   <n-form-item
                     v-if="group?.param_overrides"

@@ -48,7 +48,8 @@ type GroupCreateRequest struct {
 	Name                string              `json:"name"`
 	DisplayName         string              `json:"display_name"`
 	Description         string              `json:"description"`
-	GroupType           string              `json:"group_type"` // 'standard' or 'aggregate'
+	GroupType           string              `json:"group_type"`    // 'standard' or 'aggregate'
+	RetryStrategy       string              `json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage     `json:"upstreams"`
 	ChannelType         string              `json:"channel_type"`
 	Sort                int                 `json:"sort"`
@@ -75,6 +76,7 @@ func (s *Server) CreateGroup(c *gin.Context) {
 		DisplayName:         req.DisplayName,
 		Description:         req.Description,
 		GroupType:           req.GroupType,
+		RetryStrategy:       req.RetryStrategy,
 		Upstreams:           req.Upstreams,
 		ChannelType:         req.ChannelType,
 		Sort:                req.Sort,
@@ -118,8 +120,11 @@ type GroupUpdateRequest struct {
 	DisplayName         *string             `json:"display_name,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	GroupType           *string             `json:"group_type,omitempty"`
+	RetryStrategy       *string             `json:"retry_strategy,omitempty"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage     `json:"upstreams"`
 	ChannelType         *string             `json:"channel_type,omitempty"`
+	ForcePathSwitch     *bool               `json:"force_path_switch,omitempty"`
+	TargetPath          *string             `json:"target_path,omitempty"`
 	Sort                *int                `json:"sort"`
 	TestModel           string              `json:"test_model"`
 	ValidationEndpoint  *string             `json:"validation_endpoint,omitempty"`
@@ -150,8 +155,11 @@ func (s *Server) UpdateGroup(c *gin.Context) {
 		DisplayName:         req.DisplayName,
 		Description:         req.Description,
 		GroupType:           req.GroupType,
+		RetryStrategy:       req.RetryStrategy,
 		ChannelType:         req.ChannelType,
 		Sort:                req.Sort,
+		ForcePathSwitch:     req.ForcePathSwitch,
+		TargetPath:          req.TargetPath,
 		ValidationEndpoint:  req.ValidationEndpoint,
 		ParamOverrides:      req.ParamOverrides,
 		ModelRedirectRules:  req.ModelRedirectRules,
@@ -191,8 +199,11 @@ type GroupResponse struct {
 	DisplayName         string              `json:"display_name"`
 	Description         string              `json:"description"`
 	GroupType           string              `json:"group_type"`
+	RetryStrategy       string              `json:"retry_strategy"` // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           datatypes.JSON      `json:"upstreams"`
 	ChannelType         string              `json:"channel_type"`
+	ForcePathSwitch     bool                `json:"force_path_switch"`
+	TargetPath          string              `json:"target_path"`
 	Sort                int                 `json:"sort"`
 	TestModel           string              `json:"test_model"`
 	ValidationEndpoint  string              `json:"validation_endpoint"`
@@ -235,8 +246,11 @@ func (s *Server) newGroupResponse(group *models.Group) *GroupResponse {
 		DisplayName:         group.DisplayName,
 		Description:         group.Description,
 		GroupType:           group.GroupType,
+		RetryStrategy:       group.RetryStrategy,
 		Upstreams:           group.Upstreams,
 		ChannelType:         group.ChannelType,
+		ForcePathSwitch:     group.ForcePathSwitch,
+		TargetPath:          group.TargetPath,
 		Sort:                group.Sort,
 		TestModel:           group.TestModel,
 		ValidationEndpoint:  group.ValidationEndpoint,
@@ -317,6 +331,40 @@ func (s *Server) GetGroupStats(c *gin.Context) {
 	}
 
 	response.Success(c, stats)
+}
+
+// GetGroupModels handles fetching model list from a standard group upstream.
+func (s *Server) GetGroupModels(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		response.ErrorI18nFromAPIError(c, app_errors.ErrBadRequest, "validation.invalid_group_id")
+		return
+	}
+
+	upstreamIndex := 0
+	if rawIndex := strings.TrimSpace(c.Query("upstream_index")); rawIndex != "" {
+		parsedIndex, err := strconv.Atoi(rawIndex)
+		if err != nil {
+			response.ErrorI18nFromAPIError(c, app_errors.ErrBadRequest, "validation.invalid_upstream_index")
+			return
+		}
+		upstreamIndex = parsedIndex
+	}
+
+	status, body, contentType, err := s.GroupService.GetGroupModels(c.Request.Context(), uint(id), upstreamIndex)
+	if s.handleGroupError(c, err) {
+		return
+	}
+
+	if contentType != "" {
+		c.Header("Content-Type", contentType)
+	} else {
+		c.Header("Content-Type", "application/json")
+	}
+	c.Status(status)
+	if _, writeErr := c.Writer.Write(body); writeErr != nil {
+		logrus.WithContext(c.Request.Context()).WithError(writeErr).Error("failed to write group models response")
+	}
 }
 
 // GroupCopyRequest defines the payload for copying a group.

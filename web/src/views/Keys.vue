@@ -32,7 +32,11 @@ async function loadGroups() {
       if (found) {
         selectedGroup.value = found;
       } else {
-        handleGroupSelect(groups.value[0]);
+        // 优先选择 OpenAI 渠道的第一个标准分组
+        const defaultGroup =
+          groups.value.find(g => g.channel_type === "openai" && g.group_type !== "aggregate") ||
+          groups.value[0];
+        handleGroupSelect(defaultGroup);
       }
     }
   } catch (error) {
@@ -168,7 +172,7 @@ function handleNavigateToGroup(groupId: number) {
             :sub-groups="subGroups"
             :groups="groups"
             :loading="loadingSubGroups"
-            @refresh="loadSubGroups"
+            @refresh="() => refreshGroupsAndSelect(selectedGroup?.id)"
             @group-select="handleSubGroupSelect"
           />
         </div>
@@ -188,6 +192,7 @@ function handleNavigateToGroup(groupId: number) {
 .sidebar {
   width: 100%;
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .main-content {
@@ -214,7 +219,7 @@ function handleNavigateToGroup(groupId: number) {
   }
 
   .sidebar {
-    width: 240px;
+    width: 520px;
     height: calc(100vh - 159px);
   }
 }

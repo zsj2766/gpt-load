@@ -210,6 +210,8 @@ func (sm *SystemSettingsManager) UpdateSettings(settingsMap map[string]any) erro
 // GetEffectiveConfig 获取有效配置 (系统配置 + 分组覆盖)
 func (sm *SystemSettingsManager) GetEffectiveConfig(groupConfigJSON datatypes.JSONMap) types.SystemSettings {
 	effectiveConfig := sm.GetSettings()
+	effectiveConfig.ForcePathSwitch = false
+	effectiveConfig.TargetPath = ""
 
 	if groupConfigJSON == nil {
 		return effectiveConfig
@@ -317,14 +319,13 @@ func (sm *SystemSettingsManager) ValidateSettings(settingsMap map[string]any) er
 
 // ValidateGroupConfigOverrides validates a map of group-level configuration overrides.
 func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[string]any) error {
-	tempSettings := types.SystemSettings{}
-	v := reflect.ValueOf(&tempSettings).Elem()
-	t := v.Type()
+	var tempGroupConfig models.GroupConfig
+	t := reflect.TypeOf(tempGroupConfig)
 	jsonToField := make(map[string]reflect.StructField)
 	for i := range t.NumField() {
 		field := t.Field(i)
 		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
-		if jsonTag != "" {
+		if jsonTag != "" && jsonTag != "-" {
 			jsonToField[jsonTag] = field
 		}
 	}
@@ -339,10 +340,12 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 			return fmt.Errorf("invalid setting key: %s", key)
 		}
 
-		validateTag := field.Tag.Get("validate")
-		rules := strings.Split(validateTag, ",")
+		fieldKind := field.Type.Kind()
+		if fieldKind == reflect.Ptr {
+			fieldKind = field.Type.Elem().Kind()
+		}
 
-		switch field.Type.Kind() {
+		switch fieldKind {
 		case reflect.Int:
 			floatVal, ok := value.(float64)
 			if !ok {
@@ -352,29 +355,20 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 			if floatVal != float64(intVal) {
 				return fmt.Errorf("invalid value for %s: must be an integer", key)
 			}
-
-			// The 'required' check is implicitly handled by the type assertion above.
-			for _, rule := range rules {
-				trimmedRule := strings.TrimSpace(rule)
-				if strings.HasPrefix(trimmedRule, "min=") {
-					minValStr := strings.TrimPrefix(trimmedRule, "min=")
-					minVal, _ := strconv.Atoi(minValStr)
-					if intVal < minVal {
-						return fmt.Errorf("value for %s (%d) is below minimum value (%d)", key, intVal, minVal)
-					}
-				}
+			if intVal < 0 {
+				return fmt.Errorf("value for %s (%d) cannot be negative", key, intVal)
 			}
 		case reflect.String:
 			strVal, ok := value.(string)
 			if !ok {
 				continue
 			}
-			for _, rule := range rules {
-				trimmedRule := strings.TrimSpace(rule)
-				if trimmedRule == "required" {
-					if strVal == "" {
-						return fmt.Errorf("value for %s is required", key)
-					}
+			if key == "target_path" {
+				if strVal == "" {
+					break
+				}
+				if !utils.IsValidForceTargetPath(strVal) {
+					return fmt.Errorf("invalid target_path: %s", strVal)
 				}
 			}
 		case reflect.Bool:

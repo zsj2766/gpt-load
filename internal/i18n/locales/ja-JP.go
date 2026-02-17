@@ -76,6 +76,12 @@ var MessagesJaJP = map[string]string{
 	"validation.sub_group_referenced_cannot_modify": "このグループは {{.count}} 個の集約グループでサブグループとして参照されています。チャンネルタイプまたは検証エンドポイントは変更できません。変更前に関連する集約グループからこのグループを削除してください",
 	"validation.standard_group_requires_upstreams_testmodel": "標準グループへの変換にはアップストリームサーバーとテストモデルの提供が必要です",
 	"validation.aggregate_no_model_redirect": "集約グループはモデルリダイレクトルールをサポートしていません",
+	"validation.invalid_retry_strategy": "無効なリトライ戦略です。'auto'、'fixed'、または 'switch' である必要があります",
+	"validation.force_path_switch_openai_only": "強制パス変換は OpenAI の標準グループのみ対応します",
+	"validation.invalid_target_path":         "無効なターゲットパスです。/ で始まり、完全なURLを含まない必要があります",
+	"validation.no_active_keys":              "このグループで利用可能なキーがありません",
+	"validation.invalid_upstream_index":      "無効なアップストリームのインデックス",
+	"validation.group_not_standard":          "このグループは標準グループではありません",
 
 	// Task related
 	"task.validation_started": "キー検証タスクが開始されました",
@@ -165,6 +171,10 @@ var MessagesJaJP = map[string]string{
 	"config.key_validation_concurrency_desc": "バックグラウンドで無効なキーを検証する際の並行数。SQLiteや低性能環境では20以下を維持し、データ不整合を回避してください。",
 	"config.key_validation_timeout":          "キー検証タイムアウト（秒）",
 	"config.key_validation_timeout_desc":     "バックグラウンドで単一キーを検証する際のAPIリクエストタイムアウト（秒）。",
+	"config.force_path_switch":               "リクエストパス強制変換",
+	"config.force_path_switch_desc":          "有効にすると、OpenAI 標準グループはリクエストパスをターゲットパス（デフォルト /v1/chat/completions）に強制変換します。無効の場合は呼び出し元のパスを透過します。",
+	"config.target_path":                     "強制変換ターゲットパス",
+	"config.target_path_desc":                "強制変換時に使用する上流パス。デフォルトは /v1/chat/completions で、有効なパスなら任意に設定できます。",
 
 	// Category labels
 	"config.category.basic":   "基本設定",

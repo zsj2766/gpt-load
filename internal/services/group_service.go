@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"reflect"
@@ -16,6 +18,8 @@ import (
 	"gpt-load/internal/config"
 	"gpt-load/internal/encryption"
 	app_errors "gpt-load/internal/errors"
+	"gpt-load/internal/httpclient"
+	"gpt-load/internal/keypool"
 	"gpt-load/internal/models"
 	"gpt-load/internal/utils"
 
@@ -55,9 +59,11 @@ type GroupService struct {
 	groupManager          *GroupManager
 	keyService            *KeyService
 	keyImportSvc          *KeyImportService
+	keyProvider           *keypool.KeyProvider
 	encryptionSvc         encryption.Service
 	aggregateGroupService *AggregateGroupService
 	channelRegistry       []string
+	clientManager         *httpclient.HTTPClientManager
 }
 
 // NewGroupService constructs a GroupService.
@@ -69,6 +75,8 @@ func NewGroupService(
 	keyImportSvc *KeyImportService,
 	encryptionSvc encryption.Service,
 	aggregateGroupService *AggregateGroupService,
+	keyProvider *keypool.KeyProvider,
+	clientManager *httpclient.HTTPClientManager,
 ) *GroupService {
 	return &GroupService{
 		db:                    db,
@@ -76,9 +84,11 @@ func NewGroupService(
 		groupManager:          groupManager,
 		keyService:            keyService,
 		keyImportSvc:          keyImportSvc,
+		keyProvider:           keyProvider,
 		encryptionSvc:         encryptionSvc,
 		aggregateGroupService: aggregateGroupService,
 		channelRegistry:       channel.GetChannels(),
+		clientManager:         clientManager,
 	}
 }
 
@@ -88,6 +98,7 @@ type GroupCreateParams struct {
 	DisplayName         string
 	Description         string
 	GroupType           string
+	RetryStrategy       string // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage
 	ChannelType         string
 	Sort                int
@@ -99,7 +110,6 @@ type GroupCreateParams struct {
 	Config              map[string]any
 	HeaderRules         []models.HeaderRule
 	ProxyKeys           string
-	SubGroups           []SubGroupInput
 }
 
 // GroupUpdateParams captures updatable fields for a group.
@@ -108,10 +118,13 @@ type GroupUpdateParams struct {
 	DisplayName         *string
 	Description         *string
 	GroupType           *string
+	RetryStrategy       *string // 'auto', 'fixed', or 'switch' (only for aggregate groups)
 	Upstreams           json.RawMessage
 	HasUpstreams        bool
 	ChannelType         *string
 	Sort                *int
+	ForcePathSwitch     *bool
+	TargetPath          *string
 	TestModel           string
 	HasTestModel        bool
 	ValidationEndpoint  *string
@@ -121,7 +134,6 @@ type GroupUpdateParams struct {
 	Config              map[string]any
 	HeaderRules         *[]models.HeaderRule
 	ProxyKeys           *string
-	SubGroups           *[]SubGroupInput
 }
 
 // KeyStats captures aggregated API key statistics for a group.
@@ -219,9 +231,23 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.aggregate_no_model_redirect", nil)
 	}
 
-	// Validate model redirect rules format
+	// Validate and normalize model redirect rules
 	if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
+	}
+
+	// Validate and set retry strategy (only for aggregate groups)
+	retryStrategy := strings.TrimSpace(params.RetryStrategy)
+	if groupType == "aggregate" {
+		if retryStrategy == "" {
+			retryStrategy = models.RetryStrategyAuto
+		}
+		if !isValidRetryStrategy(retryStrategy) {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_retry_strategy", nil)
+		}
+	} else {
+		// For non-aggregate groups, retry strategy is not applicable
+		retryStrategy = ""
 	}
 
 	group := models.Group{
@@ -229,6 +255,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		DisplayName:         strings.TrimSpace(params.DisplayName),
 		Description:         strings.TrimSpace(params.Description),
 		GroupType:           groupType,
+		RetryStrategy:       retryStrategy,
 		Upstreams:           cleanedUpstreams,
 		ChannelType:         channelType,
 		Sort:                params.Sort,
@@ -241,6 +268,35 @@ func (s *GroupService) CreateGroup(ctx context.Context, params GroupCreateParams
 		HeaderRules:         headerRulesJSON,
 		ProxyKeys:           strings.TrimSpace(params.ProxyKeys),
 	}
+	applyForcePathConfig(&group)
+
+	forcePathSwitch := group.ForcePathSwitch
+	targetPath := strings.TrimSpace(group.TargetPath)
+	if params.Config != nil {
+		if forceRaw, ok := params.Config["force_path_switch"]; ok {
+			if forceVal, ok := forceRaw.(bool); ok {
+				forcePathSwitch = forceVal
+			}
+		}
+		if targetRaw, ok := params.Config["target_path"]; ok {
+			if targetVal, ok := targetRaw.(string); ok {
+				targetPath = strings.TrimSpace(targetVal)
+			}
+		}
+	}
+	if forcePathSwitch {
+		if groupType != "standard" || channelType != "openai" {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+		}
+		if targetPath == "" {
+			targetPath = utils.OpenAIChatCompletionsPath
+		}
+		if !utils.IsValidForceTargetPath(targetPath) {
+			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
+		}
+	}
+	group.ForcePathSwitch = forcePathSwitch
+	group.TargetPath = targetPath
 
 	tx := s.db.WithContext(ctx).Begin()
 	if err := tx.Error; err != nil {
@@ -269,6 +325,9 @@ func (s *GroupService) ListGroups(ctx context.Context) ([]models.Group, error) {
 	if err := s.db.WithContext(ctx).Order("sort asc, id desc").Find(&groups).Error; err != nil {
 		return nil, app_errors.ParseDBError(err)
 	}
+	for i := range groups {
+		applyForcePathConfig(&groups[i])
+	}
 
 	return groups, nil
 }
@@ -279,6 +338,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 	if err := s.db.WithContext(ctx).First(&group, id).Error; err != nil {
 		return nil, app_errors.ParseDBError(err)
 	}
+	applyForcePathConfig(&group)
 
 	tx := s.db.WithContext(ctx).Begin()
 	if err := tx.Error; err != nil {
@@ -350,6 +410,12 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 	if params.Sort != nil {
 		group.Sort = *params.Sort
 	}
+	if params.ForcePathSwitch != nil {
+		group.ForcePathSwitch = *params.ForcePathSwitch
+	}
+	if params.TargetPath != nil {
+		group.TargetPath = strings.TrimSpace(*params.TargetPath)
+	}
 
 	if params.HasTestModel {
 		cleanedTestModel := strings.TrimSpace(params.TestModel)
@@ -363,12 +429,61 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 		group.ParamOverrides = params.ParamOverrides
 	}
 
+	// Validate and update retry strategy (only for aggregate groups)
+	if params.RetryStrategy != nil {
+		if group.GroupType == "aggregate" {
+			cleanedRetryStrategy := strings.TrimSpace(*params.RetryStrategy)
+			if cleanedRetryStrategy == "" {
+				cleanedRetryStrategy = models.RetryStrategyAuto
+			}
+			if !isValidRetryStrategy(cleanedRetryStrategy) {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_retry_strategy", nil)
+			}
+			group.RetryStrategy = cleanedRetryStrategy
+		}
+		// For non-aggregate groups, ignore retry strategy updates
+	}
+
+	if params.Config != nil {
+		forcePathSwitch := group.ForcePathSwitch
+		targetPath := strings.TrimSpace(group.TargetPath)
+		if forceRaw, ok := params.Config["force_path_switch"]; ok {
+			if forceVal, ok := forceRaw.(bool); ok {
+				forcePathSwitch = forceVal
+			}
+		}
+		if targetRaw, ok := params.Config["target_path"]; ok {
+			if targetVal, ok := targetRaw.(string); ok {
+				targetPath = strings.TrimSpace(targetVal)
+			}
+		}
+		if forcePathSwitch {
+			if group.GroupType != "standard" || group.ChannelType != "openai" {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.force_path_switch_openai_only", nil)
+			}
+			if targetPath == "" {
+				targetPath = utils.OpenAIChatCompletionsPath
+			}
+			if !utils.IsValidForceTargetPath(targetPath) {
+				return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_target_path", nil)
+			}
+		}
+		group.ForcePathSwitch = forcePathSwitch
+		group.TargetPath = targetPath
+
+		cleanedConfig, err := s.validateAndCleanConfig(params.Config)
+		if err != nil {
+			return nil, err
+		}
+		group.Config = cleanedConfig
+	}
+
 	// Validate model redirect rules for aggregate groups
 	if group.GroupType == "aggregate" && params.ModelRedirectRules != nil && len(params.ModelRedirectRules) > 0 {
 		return nil, NewI18nError(app_errors.ErrValidation, "validation.aggregate_no_model_redirect", nil)
 	}
 
-	// Validate model redirect rules format
+	// Validate and update model redirect rules
 	if params.ModelRedirectRules != nil {
 		if err := validateModelRedirectRules(params.ModelRedirectRules); err != nil {
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_model_redirect", map[string]any{"error": err.Error()})
@@ -386,14 +501,6 @@ func (s *GroupService) UpdateGroup(ctx context.Context, id uint, params GroupUpd
 			return nil, NewI18nError(app_errors.ErrValidation, "validation.invalid_test_path", nil)
 		}
 		group.ValidationEndpoint = validationEndpoint
-	}
-
-	if params.Config != nil {
-		cleanedConfig, err := s.validateAndCleanConfig(params.Config)
-		if err != nil {
-			return nil, err
-		}
-		group.Config = cleanedConfig
 	}
 
 	if params.ProxyKeys != nil {
@@ -775,6 +882,161 @@ func (s *GroupService) GetGroupConfigOptions() ([]ConfigOption, error) {
 	return options, nil
 }
 
+// GetGroupModels fetches the raw model list from a standard group upstream.
+func (s *GroupService) GetGroupModels(ctx context.Context, groupID uint, upstreamIndex int) (int, []byte, string, error) {
+	if upstreamIndex < 0 {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstream_index", nil)
+	}
+
+	var group models.Group
+	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
+		return 0, nil, "", app_errors.ParseDBError(err)
+	}
+	applyForcePathConfig(&group)
+
+	if group.GroupType != "standard" {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.group_not_standard", nil)
+	}
+
+	group.EffectiveConfig = s.settingsManager.GetEffectiveConfig(group.Config)
+
+	var upstreams []struct {
+		URL    string `json:"url"`
+		Weight int    `json:"weight"`
+	}
+	if err := json.Unmarshal(group.Upstreams, &upstreams); err != nil {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstreams", map[string]any{"error": err.Error()})
+	}
+	if upstreamIndex >= len(upstreams) {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstream_index", nil)
+	}
+
+	upstreamURL := strings.TrimSpace(upstreams[upstreamIndex].URL)
+	if upstreamURL == "" {
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_upstreams", map[string]any{"error": "upstream URL cannot be empty"})
+	}
+
+	apiKey, err := s.getModelListKey(ctx, group.ID)
+	if err != nil {
+		return 0, nil, "", err
+	}
+
+	clientConfig := &httpclient.Config{
+		ConnectTimeout:        time.Duration(group.EffectiveConfig.ConnectTimeout) * time.Second,
+		RequestTimeout:        time.Duration(group.EffectiveConfig.RequestTimeout) * time.Second,
+		IdleConnTimeout:       time.Duration(group.EffectiveConfig.IdleConnTimeout) * time.Second,
+		MaxIdleConns:          group.EffectiveConfig.MaxIdleConns,
+		MaxIdleConnsPerHost:   group.EffectiveConfig.MaxIdleConnsPerHost,
+		ResponseHeaderTimeout: time.Duration(group.EffectiveConfig.ResponseHeaderTimeout) * time.Second,
+		ProxyURL:              group.EffectiveConfig.ProxyURL,
+		DisableCompression:    false,
+		WriteBufferSize:       32 * 1024,
+		ReadBufferSize:        32 * 1024,
+		ForceAttemptHTTP2:     true,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	client := s.clientManager.GetClient(clientConfig)
+
+	modelPaths := []string{"/v1/models"}
+	switch group.ChannelType {
+	case "openai", "openai-response", "anthropic":
+		modelPaths = []string{"/v1/models"}
+	case "gemini":
+		modelPaths = []string{"/v1beta/models", "/v1/models"}
+	default:
+		return 0, nil, "", NewI18nError(app_errors.ErrValidation, "validation.invalid_channel_type", map[string]any{"types": strings.Join(s.channelRegistry, ", ")})
+	}
+
+	requestOnce := func(modelPath string) (int, []byte, string, error) {
+		requestURL := strings.TrimRight(upstreamURL, "/") + modelPath
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+		if err != nil {
+			return 0, nil, "", err
+		}
+
+		switch group.ChannelType {
+		case "openai", "openai-response":
+			req.Header.Set("Authorization", "Bearer "+apiKey.KeyValue)
+		case "anthropic":
+			req.Header.Set("x-api-key", apiKey.KeyValue)
+			req.Header.Set("anthropic-version", "2023-06-01")
+		case "gemini":
+			q := req.URL.Query()
+			q.Set("key", apiKey.KeyValue)
+			req.URL.RawQuery = q.Encode()
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, nil, "", err
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return 0, nil, "", err
+		}
+
+		contentType := resp.Header.Get("Content-Type")
+		return resp.StatusCode, body, contentType, nil
+	}
+
+	var lastStatus int
+	var lastBody []byte
+	var lastContentType string
+	var lastErr error
+
+	for _, modelPath := range modelPaths {
+		status, body, contentType, err := requestOnce(modelPath)
+		if err == nil && status < http.StatusBadRequest {
+			return status, body, contentType, nil
+		}
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		lastStatus = status
+		lastBody = body
+		lastContentType = contentType
+	}
+
+	if lastBody != nil {
+		return lastStatus, lastBody, lastContentType, nil
+	}
+	if lastErr != nil {
+		return 0, nil, "", app_errors.NewAPIError(app_errors.ErrBadGateway, lastErr.Error())
+	}
+	return 0, nil, "", app_errors.NewAPIError(app_errors.ErrBadGateway, "upstream model request failed")
+}
+
+func (s *GroupService) getModelListKey(ctx context.Context, groupID uint) (*models.APIKey, error) {
+	var apiKey models.APIKey
+	err := s.db.WithContext(ctx).
+		Where("group_id = ? AND status = ?", groupID, models.KeyStatusActive).
+		Order("id asc").
+		First(&apiKey).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NewI18nError(app_errors.ErrNoActiveKeys, "validation.no_active_keys", nil)
+		}
+		return nil, app_errors.ParseDBError(err)
+	}
+
+	decryptedKey, err := s.encryptionSvc.Decrypt(apiKey.KeyValue)
+	if err != nil {
+		logrus.WithContext(ctx).WithFields(logrus.Fields{
+			"keyID": apiKey.ID,
+			"error": err,
+		}).Debug("Failed to decrypt key value, using as-is for backward compatibility")
+		decryptedKey = apiKey.KeyValue
+	}
+
+	apiKey.KeyValue = decryptedKey
+	return &apiKey, nil
+}
+
 // validateAndCleanConfig verifies GroupConfig overrides.
 func (s *GroupService) validateAndCleanConfig(configMap map[string]any) (map[string]any, error) {
 	if configMap == nil {
@@ -919,6 +1181,22 @@ func calculateRequestStats(total, failed int64) RequestStats {
 	return stats
 }
 
+func applyForcePathConfig(group *models.Group) {
+	if group == nil || group.Config == nil {
+		return
+	}
+	if forceRaw, ok := group.Config["force_path_switch"]; ok {
+		if forceVal, ok := forceRaw.(bool); ok {
+			group.ForcePathSwitch = forceVal
+		}
+	}
+	if targetRaw, ok := group.Config["target_path"]; ok {
+		if targetVal, ok := targetRaw.(string); ok {
+			group.TargetPath = strings.TrimSpace(targetVal)
+		}
+	}
+}
+
 func (s *GroupService) generateUniqueGroupName(ctx context.Context, baseName string) string {
 	var groups []models.Group
 	if err := s.db.WithContext(ctx).Select("name").Find(&groups).Error; err != nil {
@@ -978,6 +1256,13 @@ func (s *GroupService) isValidChannelType(channelType string) bool {
 	return false
 }
 
+// isValidRetryStrategy checks if the retry strategy is valid.
+func isValidRetryStrategy(strategy string) bool {
+	return strategy == models.RetryStrategyAuto ||
+		strategy == models.RetryStrategyFixed ||
+		strategy == models.RetryStrategySwitch
+}
+
 // convertToJSONMap converts a map[string]string to datatypes.JSONMap
 func convertToJSONMap(input map[string]string) datatypes.JSONMap {
 	if len(input) == 0 {
@@ -1005,3 +1290,4 @@ func validateModelRedirectRules(rules map[string]string) error {
 
 	return nil
 }
+

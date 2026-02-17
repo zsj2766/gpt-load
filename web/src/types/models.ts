@@ -11,6 +11,9 @@ export type KeyStatus = "active" | "invalid" | undefined;
 // 分组类型
 export type GroupType = "standard" | "aggregate";
 
+// 重试策略类型（仅用于聚合分组）
+export type RetryStrategy = "auto" | "fixed" | "switch";
+
 // 渠道类型
 export type ChannelType = "openai" | "openai-response" | "gemini" | "anthropic";
 
@@ -81,6 +84,9 @@ export interface Group {
   header_rules?: HeaderRule[];
   proxy_keys: string;
   group_type?: GroupType;
+  retry_strategy?: RetryStrategy; // 重试策略（仅用于聚合分组）
+  force_path_switch?: boolean; // 强制转换请求路径（仅 OpenAI 标准分组）
+  target_path?: string; // 强制转换目标路径
   sub_groups?: SubGroupInfo[]; // 子分组列表（仅聚合分组）
   sub_group_ids?: number[]; // 子分组ID列表
   created_at?: string;
@@ -91,7 +97,13 @@ export interface GroupConfigOption {
   key: string;
   name: string;
   description: string;
-  default_value: string | number;
+  default_value: string | number | boolean;
+}
+
+export interface GroupModelsResponse {
+  data?: Array<{ id?: string; name?: string; [key: string]: unknown }>;
+  models?: Array<{ name?: string; displayName?: string; id?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
 }
 
 // GroupStatsResponse defines the complete statistics for a group.
