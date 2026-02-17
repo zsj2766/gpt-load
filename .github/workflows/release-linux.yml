@@ -4,8 +4,8 @@ permissions:
 
 on:
   push:
-    branches:
-      - disabled-workflow-do-not-use
+    tags:
+      - "v*"
 jobs:
   release:
     runs-on: ubuntu-latest

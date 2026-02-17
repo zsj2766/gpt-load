@@ -358,8 +358,10 @@ function loadGroupData() {
     param_overrides: JSON.stringify(props.group.param_overrides || {}, null, 2),
     model_redirect_rules: JSON.stringify(props.group.model_redirect_rules || {}, null, 2),
     model_redirect_strict: props.group.model_redirect_strict || false,
-    force_path_switch: props.group.force_path_switch || false,
-    target_path: props.group.target_path || "",
+    force_path_switch:
+      props.group.force_path_switch || Boolean(props.group.config?.force_path_switch),
+    target_path:
+      props.group.target_path || String(props.group.config?.target_path || ""),
     config: {},
     configItems,
     header_rules: (props.group.header_rules || []).map((rule: HeaderRuleItem) => ({

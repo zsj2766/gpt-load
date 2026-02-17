@@ -319,8 +319,8 @@ func (sm *SystemSettingsManager) ValidateSettings(settingsMap map[string]any) er
 
 // ValidateGroupConfigOverrides validates a map of group-level configuration overrides.
 func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[string]any) error {
-	var tempGroupConfig models.GroupConfig
-	t := reflect.TypeOf(tempGroupConfig)
+	tempSettings := types.SystemSettings{}
+	t := reflect.TypeOf(tempSettings)
 	jsonToField := make(map[string]reflect.StructField)
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -332,6 +332,24 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 
 	for key, value := range configMap {
 		if value == nil {
+			continue
+		}
+
+		if key == "force_path_switch" {
+			if _, ok := value.(bool); !ok {
+				return fmt.Errorf("invalid type for %s: expected boolean, got %T", key, value)
+			}
+			continue
+		}
+
+		if key == "target_path" {
+			strVal, ok := value.(string)
+			if !ok {
+				return fmt.Errorf("invalid type for %s: expected string, got %T", key, value)
+			}
+			if strVal != "" && !utils.IsValidForceTargetPath(strVal) {
+				return fmt.Errorf("invalid target_path: %s", strVal)
+			}
 			continue
 		}
 
@@ -355,22 +373,25 @@ func (sm *SystemSettingsManager) ValidateGroupConfigOverrides(configMap map[stri
 			if floatVal != float64(intVal) {
 				return fmt.Errorf("invalid value for %s: must be an integer", key)
 			}
-			if intVal < 0 {
-				return fmt.Errorf("value for %s (%d) cannot be negative", key, intVal)
+
+			validateTag := field.Tag.Get("validate")
+			rules := strings.Split(validateTag, ",")
+			for _, rule := range rules {
+				trimmedRule := strings.TrimSpace(rule)
+				if strings.HasPrefix(trimmedRule, "min=") {
+					minValStr := strings.TrimPrefix(trimmedRule, "min=")
+					minVal, _ := strconv.Atoi(minValStr)
+					if intVal < minVal {
+						return fmt.Errorf("value for %s (%d) is below minimum value (%d)", key, intVal, minVal)
+					}
+				}
 			}
 		case reflect.String:
 			strVal, ok := value.(string)
 			if !ok {
 				continue
 			}
-			if key == "target_path" {
-				if strVal == "" {
-					break
-				}
-				if !utils.IsValidForceTargetPath(strVal) {
-					return fmt.Errorf("invalid target_path: %s", strVal)
-				}
-			}
+			_ = strVal
 		case reflect.Bool:
 			_, ok := value.(bool)
 			if !ok {

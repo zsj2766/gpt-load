@@ -70,6 +70,23 @@ const filteredConfigEntries = computed(() =>
   Object.entries(props.group?.config || {}).filter(([key]) => !excludedConfigKeys.includes(key))
 );
 
+const effectiveForcePathSwitch = computed(() => {
+  if (!props.group) {
+    return false;
+  }
+  return props.group.force_path_switch || Boolean(props.group.config?.force_path_switch);
+});
+
+const effectiveTargetPath = computed(() => {
+  if (!props.group) {
+    return "";
+  }
+  return (
+    props.group.target_path ||
+    (typeof props.group.config?.target_path === "string" ? props.group.config.target_path : "")
+  );
+});
+
 const proxyKeysDisplay = computed(() => {
   if (!props.group?.proxy_keys) {
     return "-";
@@ -82,10 +99,10 @@ const proxyKeysDisplay = computed(() => {
 
 const hasAdvancedConfig = computed(() => {
   return (
-    (props.group?.config && Object.keys(props.group.config).length > 0) ||
+    filteredConfigEntries.value.length > 0 ||
     props.group?.param_overrides ||
     (props.group?.header_rules && props.group.header_rules.length > 0) ||
-    props.group?.force_path_switch
+    effectiveForcePathSwitch.value
   );
 });
 
@@ -793,12 +810,12 @@ function getRetryStrategyType(strategy: string | undefined): "success" | "info" 
                     }}</pre>
                   </n-form-item>
                   <n-form-item
-                    v-if="group?.force_path_switch"
+                    v-if="effectiveForcePathSwitch"
                     :label="`${t('keys.forcePathSwitch')}：`"
                     :span="2"
                   >
                     <n-tag type="warning" size="small">
-                      {{ group?.target_path || '/v1/chat/completions' }}
+                      {{ effectiveTargetPath || '/v1/chat/completions' }}
                     </n-tag>
                   </n-form-item>
                   <n-form-item
