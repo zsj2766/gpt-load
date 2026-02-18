@@ -76,7 +76,7 @@ async function pollOnce() {
 
           message.info(msg, {
             closable: true,
-            duration: 0,
+            duration: 5000,
             onClose: () => {
               if (task.finished_at) {
                 localStorage.setItem("last_closed_task", task.finished_at);
