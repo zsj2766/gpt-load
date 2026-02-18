@@ -284,8 +284,15 @@ func (ps *ProxyServer) executeRequestWithRetry(
 
 		// 判断是否为最后一次尝试
 		isLastAttempt := retryCount >= cfg.MaxRetries
+		requestType := models.RequestTypeRetry
 		if isLastAttempt {
-			ps.logRequest(c, originalGroup, group, apiKey, startTime, statusCode, errors.New(parsedError), isStream, upstreamURL, channelHandler, bodyBytes, models.RequestTypeFinal)
+			requestType = models.RequestTypeFinal
+		}
+
+		ps.logRequest(c, originalGroup, group, apiKey, startTime, statusCode, errors.New(parsedError), isStream, upstreamURL, channelHandler, bodyBytes, requestType)
+
+		// 如果是最后一次尝试，直接返回错误，不再递归
+		if isLastAttempt {
 			var errorJSON map[string]any
 			if err := json.Unmarshal([]byte(errorMessage), &errorJSON); err == nil {
 				c.JSON(statusCode, errorJSON)
@@ -300,8 +307,7 @@ func (ps *ProxyServer) executeRequestWithRetry(
 			c, originalGroup, group, channelHandler, failedSubGroups,
 		)
 		if nextGroup == nil {
-			// No available group for retry, return current error as final
-			ps.logRequest(c, originalGroup, group, apiKey, startTime, statusCode, errors.New(parsedError), isStream, upstreamURL, channelHandler, bodyBytes, models.RequestTypeFinal)
+			// No available group for retry, return current error
 			var errorJSON map[string]any
 			if err := json.Unmarshal([]byte(errorMessage), &errorJSON); err == nil {
 				c.JSON(statusCode, errorJSON)
@@ -310,8 +316,6 @@ func (ps *ProxyServer) executeRequestWithRetry(
 			}
 			return
 		}
-
-		ps.logRequest(c, originalGroup, group, apiKey, startTime, statusCode, errors.New(parsedError), isStream, upstreamURL, channelHandler, bodyBytes, models.RequestTypeRetry)
 
 		// If nextChannelHandler is nil, use the current one (means we're staying with the same group)
 		if nextChannelHandler == nil {
@@ -459,8 +463,8 @@ func (ps *ProxyServer) selectNextGroupForRetry(
 		return currentGroup, currentChannelHandler, failedSubGroups
 
 	case models.RetryStrategySwitch:
-		// Switch: always try to switch to another sub-group, and stop when no alternative is available.
-		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups, false)
+		// Switch: always try to switch to another sub-group
+		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups)
 
 	case models.RetryStrategyAuto:
 		fallthrough
@@ -485,42 +489,17 @@ func (ps *ProxyServer) selectNextGroupForRetry(
 			"active_key_count": activeKeyCount,
 			"strategy":         "auto (single-key, switching)",
 		}).Debug("Auto strategy: single key or less, switching to another sub-group")
-		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups, true)
+		return ps.switchToAnotherSubGroup(c, originalGroup, currentGroup, failedSubGroups)
 	}
 }
 
-func (ps *ProxyServer) selectRetrySubGroup(
-	aggregateGroup *models.Group,
-	excludeGroupName string,
-	failedSubGroups map[string]bool,
-) (string, error) {
-	excluded := make(map[string]bool, len(failedSubGroups)+1)
-	if excludeGroupName != "" {
-		excluded[excludeGroupName] = true
-	}
-	for name := range failedSubGroups {
-		excluded[name] = true
-	}
-
-	orderedCandidates, err := ps.subGroupManager.SelectSubGroupsOrdered(aggregateGroup, excluded)
-	if err != nil {
-		return "", err
-	}
-	if len(orderedCandidates) == 0 {
-		return "", nil
-	}
-
-	return orderedCandidates[0], nil
-}
-
-// switchToAnotherSubGroup attempts to select a different sub-group for retry.
-// When allowFallbackToCurrent is false, it returns nil group if no alternative is available.
+// switchToAnotherSubGroup attempts to select a different sub-group for retry,
+// excluding the current group and previously failed groups.
 func (ps *ProxyServer) switchToAnotherSubGroup(
 	c *gin.Context,
 	originalGroup *models.Group,
 	currentGroup *models.Group,
 	failedSubGroups map[string]bool,
-	allowFallbackToCurrent bool,
 ) (*models.Group, channel.ChannelProxy, map[string]bool) {
 	// Mark current group as failed
 	updatedFailedSubGroups := make(map[string]bool)
@@ -530,18 +509,25 @@ func (ps *ProxyServer) switchToAnotherSubGroup(
 	updatedFailedSubGroups[currentGroup.Name] = true
 
 	// Try to find another sub-group that hasn't failed
-	newSubGroupName, err := ps.selectRetrySubGroup(originalGroup, currentGroup.Name, updatedFailedSubGroups)
+	newSubGroupName, err := ps.subGroupManager.SelectSubGroupExcluding(originalGroup, currentGroup.Name)
 	if err != nil || newSubGroupName == "" {
 		logrus.WithFields(logrus.Fields{
-			"aggregate_group":   originalGroup.Name,
-			"current_group":     currentGroup.Name,
-			"failed_sub_groups": updatedFailedSubGroups,
-			"error":             err,
+			"aggregate_group": originalGroup.Name,
+			"current_group":   currentGroup.Name,
+			"error":           err,
 		}).Debug("No other sub-groups available for retry")
-		if allowFallbackToCurrent {
-			return currentGroup, nil, updatedFailedSubGroups
-		}
-		return nil, nil, updatedFailedSubGroups
+		// Fall back to current group if no other options
+		return currentGroup, nil, updatedFailedSubGroups
+	}
+
+	// Check if this new sub-group has already failed in this request chain
+	if updatedFailedSubGroups[newSubGroupName] {
+		logrus.WithFields(logrus.Fields{
+			"aggregate_group":   originalGroup.Name,
+			"new_sub_group":     newSubGroupName,
+			"failed_sub_groups": updatedFailedSubGroups,
+		}).Debug("Selected sub-group has already failed, falling back to current group")
+		return currentGroup, nil, updatedFailedSubGroups
 	}
 
 	// Get the new sub-group
@@ -552,10 +538,7 @@ func (ps *ProxyServer) switchToAnotherSubGroup(
 			"new_sub_group":   newSubGroupName,
 			"error":           err,
 		}).Error("Failed to get new sub-group for retry")
-		if allowFallbackToCurrent {
-			return currentGroup, nil, updatedFailedSubGroups
-		}
-		return nil, nil, updatedFailedSubGroups
+		return currentGroup, nil, updatedFailedSubGroups
 	}
 
 	// Get the channel handler for the new group
@@ -566,10 +549,7 @@ func (ps *ProxyServer) switchToAnotherSubGroup(
 			"new_sub_group":   newSubGroupName,
 			"error":           err,
 		}).Error("Failed to get channel handler for new sub-group")
-		if allowFallbackToCurrent {
-			return currentGroup, nil, updatedFailedSubGroups
-		}
-		return nil, nil, updatedFailedSubGroups
+		return currentGroup, nil, updatedFailedSubGroups
 	}
 
 	logrus.WithFields(logrus.Fields{
